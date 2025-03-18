@@ -1,17 +1,32 @@
 # Whisper Web
 
-ML-powered speech recognition directly in your browser! Built with [🤗 Transformers.js](https://github.com/xenova/transformers.js).
+Whisper-web is a webapplication that allows you to transcribe sound files to text completely locally in your web browser.
 
-Check out the demo site [here](https://huggingface.co/spaces/Xenova/whisper-web).
+![A screenshot of the application](./screenshot.png)
 
-https://github.com/xenova/whisper-web/assets/26504141/fb170d84-9678-41b5-9248-a112ecc74c27
+This repository is a fork of [Xenova/whisper-web](https://github.com/xenova/whisper-web).
+
+Here are the main differences:
+
+- Actively maintained
+- Up-to-date dependencies, including transformers.js
+- Ability to use WebGPU or CPU
+- More user-friendly interface
+
+The main application is available at [whisper-web.mesu.re](https://whisper-web.mesu.re). It is hosted on Github Pages.
+
+## KB-Whisper
+
+I have also translated the website to Swedish and added the [Swedish KB-Whisper models](https://huggingface.co/collections/KBLab/kb-whisper-67af9eafb24da903b63cc4aa) fine-tuned by the [Swedish National library](https://www.kb.se/samverkan-och-utveckling/nytt-fran-kb/nyheter-samverkan-och-utveckling/2025-02-20-valtranad-ai-modell-forvandlar-tal-till-text.html) ♥️ for easy transcription of Swedish audio.
+
+This version is available at [kb-whisper.mesu.re](https://kb-whisper.mesu.re) (hosted in the EU by [statichost.eu](https://statichost.eu)) and the source code is on the [swedish branch](https://github.com/PierreMesure/whisper-web/tree/swedish).
 
 ## Running locally
 
 1. Clone the repo and install dependencies:
 
     ```bash
-    git clone https://github.com/xenova/whisper-web.git
+    git clone https://github.com/PierreMesure/whisper-web.git
     cd whisper-web
     npm install
     ```
@@ -21,8 +36,5 @@ https://github.com/xenova/whisper-web/assets/26504141/fb170d84-9678-41b5-9248-a1
     ```bash
     npm run dev
     ```
-
-    > Firefox users need to change the `dom.workers.modules.enabled` setting in `about:config` to `true` to enable Web Workers.
-    > Check out [this issue](https://github.com/xenova/whisper-web/issues/8) for more details.
 
 3. Open the link (e.g., [http://localhost:5173/](http://localhost:5173/)) in your browser.
