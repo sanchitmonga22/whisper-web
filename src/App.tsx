@@ -6,7 +6,7 @@ function App() {
     const transcriber = useTranscriber();
 
     return (
-        <div className='flex justify-center items-center min-h-screen'>
+        <div className='flex flex-col justify-center items-center min-h-screen'>
             <div className='container flex flex-col justify-center items-center'>
                 <h1 className='text-5xl font-extrabold tracking-tight text-slate-900 sm:text-7xl text-center'>
                     Whisper Web
@@ -18,15 +18,15 @@ function App() {
                 <Transcript transcribedData={transcriber.output} />
             </div>
 
-            <div className='absolute bottom-4'>
                 Made with{" "}
+            <footer className='text-center my-4'>
                 <a
                     className='underline'
                     href='https://github.com/xenova/transformers.js'
                 >
                     🤗 Transformers.js
                 </a>
-            </div>
+            </footer>
         </div>
     );
 }
