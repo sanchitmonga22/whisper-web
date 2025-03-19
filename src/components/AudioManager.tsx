@@ -319,13 +319,13 @@ function SettingsModal(props: {
                                 checked={props.transcriber.gpu}
                                 disabled={!IS_WEBGPU_AVAILABLE}
                                 onChange={(e) => {
-                                    props.transcriber.setGPU(
-                                        e.target.checked,
-                                    );
+                                    props.transcriber.setGPU(e.target.checked);
                                 }}
                             ></input>
                             <label htmlFor={"gpu"} className='ms-1'>
-                                {IS_WEBGPU_AVAILABLE ? "GPU" : "GPU (unsupported browser)"}
+                                {IS_WEBGPU_AVAILABLE
+                                    ? "GPU"
+                                    : "GPU (unsupported browser)"}
                             </label>
                         </div>
                     </div>

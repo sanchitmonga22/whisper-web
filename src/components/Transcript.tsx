@@ -39,11 +39,10 @@ export default function Transcript({ transcribedData }: Props) {
         saveBlob(blob, "transcript.json");
     };
 
-
     const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        endOfMessagesRef.current?.scrollIntoView({ behavior: 'auto' });
+        endOfMessagesRef.current?.scrollIntoView({ behavior: "auto" });
     }, [transcribedData?.chunks]);
 
     return (
