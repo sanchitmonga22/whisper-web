@@ -63,16 +63,8 @@ export default function Transcript({ transcribedData }: Props) {
                         {chunk.text}
                     </div>
                 ))}
-            {transcribedData?.tps && (
-                <p className='text-sm text-center mt-4 mb-1'>
-                    <span className='font-semibold text-black'>
-                        {transcribedData?.tps.toFixed(2)}
-                    </span>{" "}
-                    <span className='text-gray-500'>tokens/second</span>
-                </p>
-            )}
             {transcribedData && !transcribedData.isBusy && (
-                <div className='w-full text-right'>
+                <div className='w-full text-center'>
                     <button
                         onClick={exportTXT}
                         className='text-white bg-green-500 hover:bg-green-600 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 text-center mr-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800 inline-flex items-center'
@@ -86,6 +78,14 @@ export default function Transcript({ transcribedData }: Props) {
                         Export JSON
                     </button>
                 </div>
+            )}
+            {transcribedData?.tps && (
+                <p className='text-sm text-center mt-4'>
+                    <span className='font-semibold text-black'>
+                        {transcribedData?.tps.toFixed(2)}
+                    </span>{" "}
+                    <span className='text-gray-500'>tokens/second</span>
+                </p>
             )}
             <div ref={endOfMessagesRef} />
         </div>
