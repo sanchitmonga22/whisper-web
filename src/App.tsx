@@ -6,7 +6,7 @@ function App() {
     const transcriber = useTranscriber();
 
     return (
-        <div className='flex flex-col justify-center items-center min-h-screen'>
+        <div className='flex flex-col justify-center items-center min-h-screen my-4'>
             <div className='container flex flex-col justify-center items-center'>
                 <h1 className='text-5xl font-extrabold tracking-tight text-slate-900 sm:text-7xl text-center'>
                     Whisper Web
@@ -18,7 +18,7 @@ function App() {
                 <Transcript transcribedData={transcriber.output} />
             </div>
 
-            <footer className='text-center my-4'>
+            <footer className='text-center m-4'>
                 <b>The transcription is performed locally on your device. Your data remains private.</b>
                 <br/>Created by {" "}
                 <a
