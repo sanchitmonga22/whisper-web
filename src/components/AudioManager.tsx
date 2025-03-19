@@ -211,7 +211,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
             )}
 
             <SettingsTile
-                className='absolute bottom-4 right-4'
+                className='fixed bottom-4 right-4'
                 transcriber={props.transcriber}
                 icon={<SettingsIcon />}
             />
