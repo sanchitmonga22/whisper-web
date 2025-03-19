@@ -39,26 +39,17 @@ export default function Transcript({ transcribedData }: Props) {
         saveBlob(blob, "transcript.json");
     };
 
-    // Scroll to the bottom when the component updates
-    useEffect(() => {
-        if (divRef.current) {
-            const diff = Math.abs(
-                divRef.current.offsetHeight +
-                    divRef.current.scrollTop -
-                    divRef.current.scrollHeight,
-            );
 
-            if (diff <= 100) {
-                // We're close enough to the bottom, so scroll to the bottom
-                divRef.current.scrollTop = divRef.current.scrollHeight;
-            }
-        }
-    });
+    const endOfMessagesRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        endOfMessagesRef.current?.scrollIntoView({ behavior: 'auto' });
+    }, [transcribedData?.chunks]);
 
     return (
         <div
             ref={divRef}
-            className='w-full flex flex-col my-2 p-4 max-h-[20rem] overflow-y-auto'
+            className='w-full flex flex-col my-2 p-4 overflow-y-auto'
         >
             {transcribedData?.chunks &&
                 transcribedData.chunks.map((chunk, i) => (
@@ -96,6 +87,7 @@ export default function Transcript({ transcribedData }: Props) {
                     </button>
                 </div>
             )}
+            <div ref={endOfMessagesRef} />
         </div>
     );
 }
