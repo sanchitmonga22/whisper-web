@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 
 import { formatAudioTimestamp } from "../utils/AudioUtils";
 import { webmFixDuration } from "../utils/BlobFix";
+import { t } from "i18next";
 
 function getMimeType() {
     const types = [
@@ -123,8 +124,10 @@ export default function AudioRecorder(props: {
                 onClick={handleToggleRecording}
             >
                 {recording
-                    ? `Stop Recording (${formatAudioTimestamp(duration)})`
-                    : "Start Recording"}
+                    ? t("recorder.stop_recording", {
+                          duration: formatAudioTimestamp(duration),
+                      })
+                    : t("recorder.start_recording")}
             </button>
 
             {recordedBlob && (

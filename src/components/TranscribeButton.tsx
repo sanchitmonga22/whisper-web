@@ -1,3 +1,5 @@
+import { t } from "i18next";
+
 interface Props extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     isModelLoading: boolean;
     isTranscribing: boolean;
@@ -17,11 +19,11 @@ export function TranscribeButton(props: Props): React.JSX.Element {
             className='text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center mr-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 inline-flex items-center'
         >
             {isModelLoading ? (
-                <Spinner text={"Loading model..."} />
+                <Spinner text={t("transcribe_button.loading_model")} />
             ) : isTranscribing ? (
-                <Spinner text={"Transcribing..."} />
+                <Spinner text={t("transcribe_button.transcribing")} />
             ) : (
-                "Transcribe Audio"
+                t("transcribe_button.transcribe")
             )}
         </button>
     );

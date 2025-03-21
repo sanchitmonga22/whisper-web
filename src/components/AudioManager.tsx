@@ -8,6 +8,7 @@ import Constants, { AudioSource, LANGUAGES, MODELS } from "../utils/Constants";
 import { Transcriber } from "../hooks/useTranscriber";
 import Progress from "./Progress";
 import AudioRecorder from "./AudioRecorder";
+import { t } from "i18next";
 
 function titleCase(str: string) {
     str = str.toLowerCase();
@@ -133,7 +134,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                 <div className='flex flex-row space-x-2 py-2 w-full px-2'>
                     <UrlTile
                         icon={<AnchorIcon />}
-                        text={"From URL"}
+                        text={t("manager.from_url")}
                         onUrlUpdate={(e) => {
                             props.transcriber.onInputChange();
                             setAudioDownloadUrl(e);
@@ -142,7 +143,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                     <VerticalBar />
                     <FileTile
                         icon={<FolderIcon />}
-                        text={"From file"}
+                        text={t("manager.from_file")}
                         onFileUpdate={(decoded, blobUrl, mimeType) => {
                             props.transcriber.onInputChange();
                             setAudioData({
@@ -158,7 +159,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                             <VerticalBar />
                             <RecordTile
                                 icon={<MicrophoneIcon />}
-                                text={"Record"}
+                                text={t("manager.record")}
                                 setAudioData={(e) => {
                                     props.transcriber.onInputChange();
                                     setAudioFromRecording(e);
@@ -194,9 +195,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                     </div>
                     {props.transcriber.progressItems.length > 0 && (
                         <div className='relative z-10 p-4 w-full text-center'>
-                            <label>
-                                Loading model files... (only run once)
-                            </label>
+                            <label>{t("manager.loading")}</label>
                             {props.transcriber.progressItems.map((data) => (
                                 <div key={data.file}>
                                     <Progress
@@ -273,10 +272,10 @@ function SettingsModal(props: {
     return (
         <Modal
             show={props.show}
-            title={"Settings"}
+            title={t("manager.settings")}
             content={
                 <>
-                    <label>Select the model to use.</label>
+                    <label>{t("manager.select_model")}</label>
                     <select
                         className='mt-1 mb-1 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500'
                         value={props.transcriber.model}
@@ -309,7 +308,7 @@ function SettingsModal(props: {
                                 }}
                             ></input>
                             <label htmlFor={"multilingual"} className='ms-1'>
-                                Multilingual
+                                {t("manager.multilingual")}
                             </label>
                         </div>
                         <div className='flex'>
@@ -324,14 +323,14 @@ function SettingsModal(props: {
                             ></input>
                             <label htmlFor={"gpu"} className='ms-1'>
                                 {IS_WEBGPU_AVAILABLE
-                                    ? "GPU"
-                                    : "GPU (unsupported browser)"}
+                                    ? t("manager.gpu")
+                                    : t("manager.gpu_disabled")}
                             </label>
                         </div>
                     </div>
                     {props.transcriber.multilingual && (
                         <>
-                            <label>Select the source language.</label>
+                            <label>{t("manager.select_language")}</label>
                             <select
                                 className='mt-1 mb-3 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500'
                                 defaultValue={props.transcriber.language}
@@ -347,7 +346,7 @@ function SettingsModal(props: {
                                     </option>
                                 ))}
                             </select>
-                            <label>Select the task to perform.</label>
+                            <label>{t("manager.select_task")}</label>
                             <select
                                 className='mt-1 mb-3 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500'
                                 defaultValue={props.transcriber.subtask}
@@ -357,9 +356,11 @@ function SettingsModal(props: {
                                     );
                                 }}
                             >
-                                <option value={"transcribe"}>Transcribe</option>
+                                <option value={"transcribe"}>
+                                    {t("manager.transcribe")}
+                                </option>
                                 <option value={"translate"}>
-                                    Translate (to English)
+                                    {t("manager.translate")}
                                 </option>
                             </select>
                         </>
@@ -437,15 +438,15 @@ function UrlModal(props: {
     return (
         <Modal
             show={props.show}
-            title={"From URL"}
+            title={t("manager.from_url")}
             content={
                 <>
-                    {"Enter the URL of the audio file you want to load."}
+                    {t("manager.from_url_description")}
                     <UrlInput onChange={onChange} value={url} />
                 </>
             }
             onClose={props.onClose}
-            submitText={"Load"}
+            submitText={t("manager.submit")}
             onSubmit={onSubmit}
         />
     );
@@ -560,10 +561,10 @@ function RecordModal(props: {
     return (
         <Modal
             show={props.show}
-            title={"From Recording"}
+            title={t("manager.record")}
             content={
                 <>
-                    {"Record audio using your microphone"}
+                    {t("manager.record_description")}
                     <AudioRecorder
                         onRecordingProgress={(blob) => {
                             props.onProgress(blob);
@@ -573,7 +574,7 @@ function RecordModal(props: {
                 </>
             }
             onClose={onClose}
-            submitText={"Load"}
+            submitText={t("manager.submit")}
             submitEnabled={audioBlob !== undefined}
             onSubmit={onSubmit}
         />

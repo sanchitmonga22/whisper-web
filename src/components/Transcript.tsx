@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 
 import { TranscriberData } from "../hooks/useTranscriber";
 import { formatAudioTimestamp, formatSrtTimeRange } from "../utils/AudioUtils";
+import { t } from "i18next";
 
 interface Props {
     transcribedData: TranscriberData | undefined;
@@ -88,7 +89,7 @@ export default function Transcript({ transcribedData }: Props) {
                             onClick={button.onClick}
                             className='text-white bg-green-500 hover:bg-green-600 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 text-center mr-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800 inline-flex items-center'
                         >
-                            Export {button.name}
+                            {t("transcript.export")} {button.name}
                         </button>
                     ))}
                 </div>
@@ -98,7 +99,9 @@ export default function Transcript({ transcribedData }: Props) {
                     <span className='font-semibold text-black'>
                         {transcribedData?.tps.toFixed(2)}
                     </span>{" "}
-                    <span className='text-gray-500'>tokens/second</span>
+                    <span className='text-gray-500'>
+                        {t("transcript.tokens_per_second")}
+                    </span>
                 </p>
             )}
             <div ref={endOfMessagesRef} />
