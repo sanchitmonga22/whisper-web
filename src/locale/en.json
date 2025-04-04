@@ -25,7 +25,8 @@
             "submit": "Load",
             "settings": "Settings",
             "gpu": "GPU",
-            "gpu_disabled": "GPU (unsupported browser)"
+            "gpu_disabled": "GPU (unsupported browser)",
+            "clear_cache": "Clear cache"
         },
         "recorder": {
             "start_recording": "Start recording",

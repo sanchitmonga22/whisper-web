@@ -25,7 +25,8 @@
             "submit": "Ladda",
             "settings": "Inställningar",
             "gpu": "GPU",
-            "gpu_disabled": "GPU (ej kompatibel med webbläsaren)"
+            "gpu_disabled": "GPU (ej kompatibel med webbläsaren)",
+            "clear_cache": "Rensa cache"
         },
         "recorder": {
             "start_recording": "Starta inspelning",

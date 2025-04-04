@@ -3,7 +3,7 @@
         "app": {
             "title": "Whisper Web",
             "subtitle": "¡Transcribe el habla directamente en tu navegador!",
-            "footer": "La transcripción se realiza localmente en tu dispositivo. Tus datos permanecen privados.",
+            "footer": "La transcripción se realiza localmente en tu navegador. Tus datos se quedan privados.",
             "footer_credits": "Creado por <authorLink>Pierre Mesure</authorLink> basado en una demostración de <demoLink>Xenova</demoLink> ♥️"
         },
         "modal": {
@@ -25,7 +25,8 @@
             "submit": "Cargar",
             "settings": "Configuraciones",
             "gpu": "GPU",
-            "gpu_disabled": "GPU (navegador no compatible)"
+            "gpu_disabled": "GPU (navegador no compatible)",
+            "clear_cache": "Borrar caché"
         },
         "recorder": {
             "start_recording": "Iniciar grabación",

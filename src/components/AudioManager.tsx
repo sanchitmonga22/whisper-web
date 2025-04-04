@@ -269,6 +269,20 @@ function SettingsModal(props: {
     // @ts-expect-error navigator.gpu not yet supported
     const IS_WEBGPU_AVAILABLE = !!navigator.gpu;
 
+    const [cacheSize, setCacheSize] = useState<number>(0);
+
+    async function fetchCacheSize() {
+        if ("storage" in navigator && "estimate" in navigator.storage) {
+            const estimate = await navigator.storage.estimate();
+            const usage = Number(estimate.usage);
+            setCacheSize(~~(usage / 1000000));
+        } else {
+            setCacheSize(-1);
+        }
+    }
+
+    fetchCacheSize();
+
     return (
         <Modal
             show={props.show}
@@ -369,6 +383,7 @@ function SettingsModal(props: {
             }
             onClose={props.onClose}
             onSubmit={() => {}}
+            cacheSize={cacheSize}
         />
     );
 }
@@ -448,6 +463,7 @@ function UrlModal(props: {
             onClose={props.onClose}
             submitText={t("manager.submit")}
             onSubmit={onSubmit}
+            cacheSize={0}
         />
     );
 }
@@ -577,6 +593,7 @@ function RecordModal(props: {
             submitText={t("manager.submit")}
             submitEnabled={audioBlob !== undefined}
             onSubmit={onSubmit}
+            cacheSize={0}
         />
     );
 }
