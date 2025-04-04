@@ -12,7 +12,6 @@
         "manager": {
             "loading": "Loading model files... (only run once)",
             "select_model": "Select the model to use.",
-            "multilingual": "Multilingual",
             "select_language": "Select the source language.",
             "select_task": "Select the task to perform.",
             "transcribe": "Transcribe",

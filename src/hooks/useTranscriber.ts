@@ -35,8 +35,8 @@ export interface Transcriber {
     output?: TranscriberData;
     model: string;
     setModel: (model: string) => void;
-    multilingual: boolean;
-    setMultilingual: (model: boolean) => void;
+    dtype: string;
+    setDtype: (model: string) => void;
     gpu: boolean;
     setGPU: (model: boolean) => void;
     subtask: string;
@@ -111,9 +111,7 @@ export function useTranscriber(): Transcriber {
 
     const [model, setModel] = useState<string>(Constants.DEFAULT_MODEL);
     const [subtask, setSubtask] = useState<string>(Constants.DEFAULT_SUBTASK);
-    const [multilingual, setMultilingual] = useState<boolean>(
-        Constants.DEFAULT_MULTILINGUAL,
-    );
+    const [dtype, setDtype] = useState<string>(Constants.DEFAULT_DTYPE);
     const [gpu, setGPU] = useState<boolean>(Constants.DEFAULT_GPU);
     const [language, setLanguage] = useState<string>(
         Constants.DEFAULT_LANGUAGE,
@@ -148,15 +146,17 @@ export function useTranscriber(): Transcriber {
                 webWorker.postMessage({
                     audio,
                     model,
-                    multilingual,
+                    dtype,
                     gpu,
-                    subtask: multilingual ? subtask : null,
+                    subtask: !model.endsWith(".en") ? subtask : null,
                     language:
-                        multilingual && language !== "auto" ? language : null,
+                        !model.endsWith(".en") && language !== "auto"
+                            ? language
+                            : null,
                 });
             }
         },
-        [webWorker, model, multilingual, gpu, subtask, language],
+        [webWorker, model, dtype, gpu, subtask, language],
     );
 
     const transcriber = useMemo(() => {
@@ -169,8 +169,8 @@ export function useTranscriber(): Transcriber {
             output: transcript,
             model,
             setModel,
-            multilingual,
-            setMultilingual,
+            dtype,
+            setDtype,
             gpu,
             setGPU,
             subtask,
@@ -186,7 +186,7 @@ export function useTranscriber(): Transcriber {
         postRequest,
         transcript,
         model,
-        multilingual,
+        dtype,
         gpu,
         subtask,
         language,

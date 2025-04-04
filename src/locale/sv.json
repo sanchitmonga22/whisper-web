@@ -12,7 +12,6 @@
         "manager": {
             "loading": "Laddar modellfiler... (körs endast en gång)",
             "select_model": "Välj den modell som ska användas.",
-            "multilingual": "Flerspråkig",
             "select_language": "Välj källspråk.",
             "select_task": "Välj uppgift.",
             "transcribe": "Transkribera",

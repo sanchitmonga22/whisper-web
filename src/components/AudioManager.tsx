@@ -4,7 +4,12 @@ import Modal from "./modal/Modal";
 import { UrlInput } from "./modal/UrlInput";
 import AudioPlayer from "./AudioPlayer";
 import { TranscribeButton } from "./TranscribeButton";
-import Constants, { AudioSource, LANGUAGES, MODELS } from "../utils/Constants";
+import Constants, {
+    AudioSource,
+    DTYPES,
+    LANGUAGES,
+    MODELS,
+} from "../utils/Constants";
 import { Transcriber } from "../hooks/useTranscriber";
 import Progress from "./Progress";
 import AudioRecorder from "./AudioRecorder";
@@ -258,13 +263,14 @@ function SettingsModal(props: {
 }) {
     const names = Object.values(LANGUAGES).map(titleCase);
 
-    const models = MODELS.filter(
-        ([key]) => !props.transcriber.multilingual || !key.includes("/distil-"),
-    ).map(([key, value]) => ({
-        key,
-        size: value,
-        id: `${key}${props.transcriber.multilingual || key.includes("/distil-") ? "" : ".en"}`,
-    }));
+    const [isMultilingual, setIsMultilingual] = useState(false);
+
+    useEffect(() => {
+        const model = props.transcriber.model;
+        const isModelMultilingual =
+            !model.endsWith(".en") && MODELS[model] && MODELS[model][1] === "";
+        setIsMultilingual(isModelMultilingual);
+    }, [props.transcriber.model]);
 
     // @ts-expect-error navigator.gpu not yet supported
     const IS_WEBGPU_AVAILABLE = !!navigator.gpu;
@@ -283,6 +289,15 @@ function SettingsModal(props: {
 
     fetchCacheSize();
 
+    // Get the language code of the selected model
+    const getModelLanguage = () => {
+        if (props.transcriber.model in MODELS) {
+            const [, lang] = MODELS[props.transcriber.model];
+            return lang || props.transcriber.language;
+        }
+        return props.transcriber.language;
+    };
+
     return (
         <Modal
             show={props.show}
@@ -297,34 +312,58 @@ function SettingsModal(props: {
                             props.transcriber.setModel(e.target.value);
                         }}
                     >
-                        {models.map(({ key, id, size }) => (
-                            <option
-                                key={key}
-                                value={id}
-                            >{`${id} (${size}MB)`}</option>
+                        {Object.entries(
+                            // Create a mapping of display names to full model keys
+                            Object.entries(MODELS).reduce(
+                                (acc, [modelKey, [displayName, group]]) => {
+                                    const groupName =
+                                        group &&
+                                        LANGUAGES[
+                                            group as keyof typeof LANGUAGES
+                                        ]
+                                            ? titleCase(
+                                                  LANGUAGES[
+                                                      group as keyof typeof LANGUAGES
+                                                  ],
+                                              )
+                                            : "Multilingual";
+                                    acc[groupName] = acc[groupName] || [];
+                                    // Store both the display name and the full model key
+                                    acc[groupName].push([
+                                        displayName,
+                                        modelKey,
+                                        group,
+                                    ]);
+                                    return acc;
+                                },
+                                {} as {
+                                    [group: string]: [string, string, string][];
+                                },
+                            ),
+                        ).map(([group, models]) => (
+                            <optgroup key={group} label={group}>
+                                {models.map(([displayName, modelKey]) => (
+                                    <option key={modelKey} value={modelKey}>
+                                        {displayName}
+                                    </option>
+                                ))}
+                            </optgroup>
+                        ))}
+                    </select>
+                    <select
+                        className='mt-1 mb-1 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500'
+                        defaultValue={props.transcriber.dtype}
+                        onChange={(e) => {
+                            props.transcriber.setDtype(e.target.value);
+                        }}
+                    >
+                        {DTYPES.map((value, index) => (
+                            <option key={index} value={value}>
+                                {value}
+                            </option>
                         ))}
                     </select>
                     <div className='flex justify-between items-center mb-3 px-1'>
-                        <div className='flex'>
-                            <input
-                                id='multilingual'
-                                type='checkbox'
-                                checked={props.transcriber.multilingual}
-                                onChange={(e) => {
-                                    let model = Constants.DEFAULT_MODEL;
-                                    if (!e.target.checked) {
-                                        model += ".en";
-                                    }
-                                    props.transcriber.setModel(model);
-                                    props.transcriber.setMultilingual(
-                                        e.target.checked,
-                                    );
-                                }}
-                            ></input>
-                            <label htmlFor={"multilingual"} className='ms-1'>
-                                {t("manager.multilingual")}
-                            </label>
-                        </div>
                         <div className='flex'>
                             <input
                                 id='gpu'
@@ -342,43 +381,47 @@ function SettingsModal(props: {
                             </label>
                         </div>
                     </div>
-                    {props.transcriber.multilingual && (
-                        <>
-                            <label>{t("manager.select_language")}</label>
-                            <select
-                                className='mt-1 mb-3 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500'
-                                defaultValue={props.transcriber.language}
-                                onChange={(e) => {
-                                    props.transcriber.setLanguage(
-                                        e.target.value,
-                                    );
-                                }}
-                            >
-                                {Object.keys(LANGUAGES).map((key, i) => (
-                                    <option key={key} value={key}>
-                                        {names[i]}
-                                    </option>
-                                ))}
-                            </select>
-                            <label>{t("manager.select_task")}</label>
-                            <select
-                                className='mt-1 mb-3 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500'
-                                defaultValue={props.transcriber.subtask}
-                                onChange={(e) => {
-                                    props.transcriber.setSubtask(
-                                        e.target.value,
-                                    );
-                                }}
-                            >
-                                <option value={"transcribe"}>
-                                    {t("manager.transcribe")}
-                                </option>
-                                <option value={"translate"}>
-                                    {t("manager.translate")}
-                                </option>
-                            </select>
-                        </>
-                    )}
+
+                    <label>{t("manager.select_language")}</label>
+                    <select
+                        className='mt-1 mb-3 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed'
+                        value={
+                            isMultilingual
+                                ? props.transcriber.language
+                                : getModelLanguage()
+                        }
+                        onChange={(e) => {
+                            props.transcriber.setLanguage(e.target.value);
+                        }}
+                        disabled={!isMultilingual}
+                    >
+                        {Object.keys(LANGUAGES).map((key, i) => (
+                            <option key={key} value={key}>
+                                {names[i]}
+                            </option>
+                        ))}
+                    </select>
+
+                    <label>{t("manager.select_task")}</label>
+                    <select
+                        className='mt-1 mb-3 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed'
+                        value={
+                            isMultilingual
+                                ? props.transcriber.subtask
+                                : "transcribe"
+                        }
+                        onChange={(e) => {
+                            props.transcriber.setSubtask(e.target.value);
+                        }}
+                        disabled={!isMultilingual}
+                    >
+                        <option value={"transcribe"}>
+                            {t("manager.transcribe")}
+                        </option>
+                        <option value={"translate"}>
+                            {t("manager.translate")}
+                        </option>
+                    </select>
                 </>
             }
             onClose={props.onClose}
@@ -426,7 +469,6 @@ function UrlTile(props: {
         props.onUrlUpdate(url);
         onClose();
     };
-
     return (
         <>
             <Tile icon={props.icon} text={props.text} onClick={onClick} />

@@ -127,16 +127,25 @@ export const LANGUAGES = {
     su: "sundanese",
 };
 
-export const MODELS = Object.entries({
+export const MODELS: { [key: string]: [string, string] } = {
     // Original checkpoints
-    "onnx-community/whisper-tiny": 120, // 33 + 87
-    "onnx-community/whisper-base": 206, // 83 + 123
-    "onnx-community/whisper-small": 586, // 353 + 233
-    "onnx-community/whisper-large-v3-turbo": 1604, // 1270 + 334
+    "onnx-community/whisper-tiny": ["tiny", ""],
+    "onnx-community/whisper-base": ["base", ""],
+    "onnx-community/whisper-small": ["small", ""],
+    "onnx-community/whisper-large-v3-turbo": ["large-v3-turbo", ""],
+    "onnx-community/distil-small.en": ["distil-small.en", "en"],
+};
 
-    // Distil Whisper (English-only)
-    "onnx-community/distil-small.en": 538, // 353 + 185
-});
+export const DTYPES: string[] = [
+    "fp32",
+    "fp16",
+    "q8",
+    "int8",
+    "uint8",
+    "q4",
+    "bnb4",
+    "q4f16",
+];
 
 export enum AudioSource {
     URL = "URL",
@@ -156,6 +165,6 @@ export default {
     DEFAULT_SUBTASK: "transcribe",
     DEFAULT_LANGUAGE: "english",
     DEFAULT_QUANTIZED: isMobileOrTablet,
-    DEFAULT_MULTILINGUAL: true,
+    DEFAULT_DTYPE: "q4",
     DEFAULT_GPU: false,
 };
