@@ -183,12 +183,16 @@ function getDefaultModel(language: string): string {
     }
 }
 
+function getDefaultLanguage(language: string): string {
+    return (language as keyof typeof LANGUAGES) || "en";
+}
+
 export default {
     SAMPLING_RATE: 16000,
     getDefaultAudioUrl,
     getDefaultModel,
     DEFAULT_SUBTASK: "transcribe",
-    DEFAULT_LANGUAGE: "english",
+    getDefaultLanguage,
     DEFAULT_QUANTIZED: isMobileOrTablet,
     DEFAULT_DTYPE: "q8",
     DEFAULT_GPU: false,
