@@ -43,6 +43,7 @@
         "language_selector": {
             "title": "Språk",
             "sv": "svenska",
+            "no": "norska",
             "en": "engelska",
             "es": "spanska"
         }

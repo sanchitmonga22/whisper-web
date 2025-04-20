@@ -140,6 +140,9 @@ export const MODELS: { [key: string]: [string, string] } = {
     "KBLab/kb-whisper-small": ["kb-whisper-small", "sv"],
     "KBLab/kb-whisper-medium": ["kb-whisper-medium", "sv"],
     "KBLab/kb-whisper-large": ["kb-whisper-large", "sv"],
+    "PierreMesure/nb-whisper-tiny": ["nb-whisper-tiny", "no"],
+    "PierreMesure/nb-whisper-base": ["nb-whisper-base", "no"],
+    "PierreMesure/nb-whisper-small": ["nb-whisper-small", "no"],
 };
 
 export const DTYPES: string[] = [
@@ -176,6 +179,10 @@ function getDefaultModel(language: string): string {
     switch (language) {
         case "sv":
             return `KBLab/kb-whisper-${isMobileOrTablet ? "tiny" : "base"}`;
+        case "no":
+            return `PierreMesure/nb-whisper-${
+                isMobileOrTablet ? "tiny" : "base"
+            }`;
         default:
             return `onnx-community/whisper-${
                 isMobileOrTablet ? "tiny" : "base"

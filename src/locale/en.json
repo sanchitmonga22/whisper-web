@@ -43,6 +43,7 @@
         "language_selector": {
             "title": "Language",
             "sv": "Swedish",
+            "no": "Norwegian",
             "en": "English",
             "es": "Spanish"
         }
