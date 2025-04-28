@@ -167,7 +167,9 @@ const isMobileOrTablet = mobileTabletCheck();
 function getDefaultAudioUrl(language: string): string {
     switch (language) {
         case "sv":
-            return "https://whisper-web.mesu.re/palme.wav";
+            return "https://raw.githubusercontent.com/PierreMesure/whisper-web/refs/heads/main/public/palme.wav";
+        case "no":
+            return "https://raw.githubusercontent.com/PierreMesure/whisper-web/refs/heads/main/public/norsk.mp3";
         default:
             return `https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/${
                 isMobileOrTablet ? "jfk" : "ted_60_16k"
