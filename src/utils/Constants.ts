@@ -140,9 +140,9 @@ export const MODELS: { [key: string]: [string, string] } = {
     "KBLab/kb-whisper-small": ["kb-whisper-small", "sv"],
     "KBLab/kb-whisper-medium": ["kb-whisper-medium", "sv"],
     "KBLab/kb-whisper-large": ["kb-whisper-large", "sv"],
-    "PierreMesure/nb-whisper-tiny": ["nb-whisper-tiny", "no"],
-    "PierreMesure/nb-whisper-base": ["nb-whisper-base", "no"],
-    "PierreMesure/nb-whisper-small": ["nb-whisper-small", "no"],
+    "PierreMesure/nb-whisper-tiny-onnx": ["nb-whisper-tiny", "no"],
+    "PierreMesure/nb-whisper-base-onnx": ["nb-whisper-base", "no"],
+    "PierreMesure/nb-whisper-small-onnx": ["nb-whisper-small", "no"],
 };
 
 export const DTYPES: string[] = [
