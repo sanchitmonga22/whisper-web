@@ -20,7 +20,7 @@ Here are the main differences:
 - Choose your own quantization level for the model
 - Clear cache with a button
 
-The main application is available at [whisper-web.mesu.re](https://whisper-web.mesu.re). It is hosted on Github Pages.
+The main application is available at [whisper-web.mesu.re](https://whisper-web.mesu.re). It is hosted on [statichost.eu](https://statichost.eu).
 
 ## KB-Whisper
 
