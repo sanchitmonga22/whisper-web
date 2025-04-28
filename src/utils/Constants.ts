@@ -169,7 +169,9 @@ function getDefaultAudioUrl(language: string): string {
         case "sv":
             return "https://raw.githubusercontent.com/PierreMesure/whisper-web/refs/heads/main/public/palme.wav";
         case "no":
-            return "https://raw.githubusercontent.com/PierreMesure/whisper-web/refs/heads/main/public/norsk.mp3";
+            return "https://raw.githubusercontent.com/NbAiLab/nb-whisper/main/audio/king.mp3";
+        case "es":
+            return "https://raw.githubusercontent.com/PierreMesure/whisper-web/refs/heads/main/public/espanol.mp3";
         default:
             return `https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/${
                 isMobileOrTablet ? "jfk" : "ted_60_16k"
