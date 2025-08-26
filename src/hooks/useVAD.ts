@@ -145,6 +145,44 @@ export function useVAD(config: VADConfig = {}) {
     }
   }, [state.isInitialized, state.isListening, initialize]);
 
+  // Pause VAD temporarily (for echo prevention)
+  const pauseVAD = useCallback(() => {
+    if (!vadRef.current || !state.isListening) {
+      console.log('[useVAD] Not listening or VAD not available for pause');
+      return;
+    }
+
+    try {
+      console.log('[useVAD] Pausing VAD for echo prevention...');
+      vadRef.current.pause();
+      
+      setState(prev => ({
+        ...prev,
+        isSpeaking: false, // Reset speaking state
+      }));
+
+      console.log('[useVAD] VAD paused');
+    } catch (err) {
+      console.error('[useVAD] Pause error:', err);
+    }
+  }, [state.isListening]);
+
+  // Resume VAD after pause
+  const resumeVAD = useCallback(() => {
+    if (!vadRef.current || !state.isListening) {
+      console.log('[useVAD] Cannot resume - not listening or VAD not available');
+      return;
+    }
+
+    try {
+      console.log('[useVAD] Resuming VAD after echo prevention...');
+      vadRef.current.start();
+      console.log('[useVAD] VAD resumed');
+    } catch (err) {
+      console.error('[useVAD] Resume error:', err);
+    }
+  }, [state.isListening]);
+
   // Stop listening
   const stopListening = useCallback(() => {
     if (!vadRef.current || !state.isListening) {
@@ -233,6 +271,8 @@ export function useVAD(config: VADConfig = {}) {
     initialize,
     startListening,
     stopListening,
+    pauseVAD,
+    resumeVAD,
     pause,
     resume,
     clearSpeechSegments,

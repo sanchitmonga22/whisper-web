@@ -7,6 +7,7 @@ import LanguageSelector from "./components/LanguageSelector";
 import StreamingTranscriber from "./components/StreamingTranscriber";
 import StreamingTranscriberWithVAD from "./components/StreamingTranscriberWithVAD";
 import VoiceAssistant from "./components/VoiceAssistant";
+import ElevenLabsAssistant from "./components/ElevenLabsAssistant";
 import ThemeToggle from "./components/ThemeToggle";
 import { useEffect, useState } from "react";
 
@@ -15,7 +16,7 @@ function App() {
 
     const { i18n } = useTranslation();
     const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
-    const [mode, setMode] = useState<'classic' | 'streaming' | 'vad' | 'assistant'>('assistant');
+    const [mode, setMode] = useState<'classic' | 'streaming' | 'vad' | 'assistant' | 'elevenlabs'>('assistant');
 
     const handleChangeLanguage = (newLanguage: string) => {
         setCurrentLanguage(newLanguage);
@@ -41,10 +42,20 @@ function App() {
                 {/* Mode Toggle */}
                 <div className="flex gap-2 mb-6 flex-wrap justify-center">
                     <button
+                        onClick={() => setMode('elevenlabs')}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                            mode === 'elevenlabs' 
+                                ? 'bg-purple-600 text-white' 
+                                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                        }`}
+                    >
+                        🎙️ ElevenLabs AI
+                    </button>
+                    <button
                         onClick={() => setMode('assistant')}
                         className={`px-4 py-2 rounded-lg font-medium transition-all ${
                             mode === 'assistant' 
-                                ? 'bg-purple-600 text-white' 
+                                ? 'bg-green-600 text-white' 
                                 : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                         }`}
                     >
@@ -82,7 +93,9 @@ function App() {
                     </button>
                 </div>
 
-                {mode === 'assistant' ? (
+                {mode === 'elevenlabs' ? (
+                    <ElevenLabsAssistant />
+                ) : mode === 'assistant' ? (
                     <VoiceAssistant />
                 ) : mode === 'vad' ? (
                     <StreamingTranscriberWithVAD transcriber={transcriber} />

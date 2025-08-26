@@ -54,6 +54,8 @@ export function useVoiceConversation(config: ConversationConfig) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const turnStartTimeRef = useRef<number>(0);
   const responseTimesRef = useRef<number[]>([]);
+  const lastTTSEndTimeRef = useRef<number>(0);
+  const TTS_COOLDOWN_MS = 1000; // 1 second cooldown after TTS ends
 
   // Initialize transcriber
   const transcriber = useTranscriber();
@@ -64,17 +66,11 @@ export function useVoiceConversation(config: ConversationConfig) {
   // Initialize TTS
   const tts = useTTS(config.tts);
 
-  // Initialize VAD with conversation-specific handlers
+  // Initialize VAD with simple conversation handlers
   const vad = useVAD({
     ...config.vad,
     onSpeechStart: () => {
       console.log('[Conversation] User started speaking');
-      
-      // Interrupt TTS if configured to do so
-      if (config.interruptible && tts.isSpeaking) {
-        console.log('[Conversation] Interrupting assistant speech');
-        tts.stop();
-      }
       
       setState(prev => ({ 
         ...prev, 
@@ -218,13 +214,56 @@ export function useVoiceConversation(config: ConversationConfig) {
     }
   }, [transcriber.output, transcriber.isBusy, state.isProcessingSTT, llm, tts, config.autoSpeak]);
 
-  // Track TTS state
+  // Simple TTS state tracking and VAD shutdown/restart
+  const prevTTSSpeakingRef = useRef<boolean>(false);
+  const vadRestartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   useEffect(() => {
+    const wasSpeaking = prevTTSSpeakingRef.current;
+    const isNowSpeaking = tts.isSpeaking;
+    
+    // Update ref for next comparison
+    prevTTSSpeakingRef.current = isNowSpeaking;
+    
+    // Update state
     setState(prev => ({ 
       ...prev, 
-      isSpeaking: tts.isSpeaking 
+      isSpeaking: isNowSpeaking 
     }));
-  }, [tts.isSpeaking]);
+    
+    // SIMPLE APPROACH: Completely stop VAD when TTS starts
+    if (!wasSpeaking && isNowSpeaking && state.isActive) {
+      console.log('[Conversation] TTS started - STOPPING VAD completely to prevent echo');
+      
+      // Clear any pending restart
+      if (vadRestartTimeoutRef.current) {
+        clearTimeout(vadRestartTimeoutRef.current);
+        vadRestartTimeoutRef.current = null;
+      }
+      
+      // Completely stop VAD
+      vad.stopListening();
+    }
+    
+    // SIMPLE APPROACH: Restart VAD after TTS completely finishes
+    if (wasSpeaking && !isNowSpeaking && state.isActive) {
+      console.log('[Conversation] TTS finished - restarting VAD after cooldown');
+      
+      // Restart VAD after cooldown
+      vadRestartTimeoutRef.current = setTimeout(async () => {
+        if (state.isActive && !tts.isSpeaking) { // Double-check we're still in conversation and not speaking
+          console.log('[Conversation] Cooldown complete - restarting VAD');
+          try {
+            await vad.startListening();
+            console.log('[Conversation] VAD successfully restarted');
+          } catch (error) {
+            console.error('[Conversation] Failed to restart VAD:', error);
+          }
+        }
+        vadRestartTimeoutRef.current = null;
+      }, TTS_COOLDOWN_MS);
+    }
+  }, [tts.isSpeaking, state.isActive, vad]);
 
   // Start conversation
   const startConversation = useCallback(async () => {
@@ -260,10 +299,20 @@ export function useVoiceConversation(config: ConversationConfig) {
   const stopConversation = useCallback(() => {
     console.log('[Conversation] Stopping voice conversation');
     
+    // Clear any pending VAD restart timeout
+    if (vadRestartTimeoutRef.current) {
+      clearTimeout(vadRestartTimeoutRef.current);
+      vadRestartTimeoutRef.current = null;
+    }
+    
     // Stop all components
     vad.stopListening();
     llm.stopStreaming();
     tts.stop();
+    
+    // Reset refs
+    lastTTSEndTimeRef.current = 0;
+    prevTTSSpeakingRef.current = false;
     
     setState(prev => ({ 
       ...prev, 
