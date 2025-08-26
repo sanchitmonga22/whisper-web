@@ -74,10 +74,10 @@ export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
           Voice AI Assistant
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Local VAD + STT • Cloud LLM (New Responses API) • Local TTS
+          Local VAD + STT • Cloud LLM (GPT-4o) • Local TTS
         </p>
         <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-          ✨ Now using OpenAI's latest Responses API with automatic fallback
+          ⚡ Hybrid architecture with real-time streaming at every stage
         </p>
       </div>
 
@@ -298,6 +298,21 @@ export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
                 {conversation.currentAssistantResponse}
                 {conversation.isProcessingLLM && (
                   <span className="animate-pulse">|</span>
+                )}
+                {/* Show TTS streaming progress */}
+                {conversation.tts.streamProgress.isStreaming && conversation.tts.streamProgress.spokenText && (
+                  <div className="mt-2 text-xs text-green-600 dark:text-green-400">
+                    <div className="flex items-center gap-2">
+                      <span>🔊 Speaking:</span>
+                      <div className="flex-1 bg-green-200 dark:bg-green-800 rounded-full h-1">
+                        <div 
+                          className="bg-green-600 h-1 rounded-full transition-all duration-300"
+                          style={{ width: `${conversation.tts.streamProgress.progress * 100}%` }}
+                        ></div>
+                      </div>
+                      <span>{Math.round(conversation.tts.streamProgress.progress * 100)}%</span>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

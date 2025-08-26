@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.12.2",
     "@headlessui/react": "^2.2.6",
     "@huggingface/transformers": "3.7.0",
     "@ricky0123/vad-web": "^0.0.24",

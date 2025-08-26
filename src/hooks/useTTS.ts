@@ -194,31 +194,29 @@ export function useTTS(config: TTSConfig = {}) {
     }
   }, [state.isSupported, state.isSpeaking, createUtterance]);
 
-  // Stream text (speak as chunks come in)
-  const speakStream = useCallback((textChunk: string, isComplete: boolean = false) => {
-    // For now, we'll accumulate chunks and speak complete sentences
-    // This could be enhanced to speak chunks immediately for faster response
-    
-    // Simple sentence boundary detection
-    const sentenceEnders = /[.!?]\s*/g;
-    const sentences = textChunk.split(sentenceEnders).filter(s => s.trim());
-    
-    if (sentences.length > 0 && (isComplete || textChunk.match(sentenceEnders))) {
-      // Speak the complete sentences
-      const textToSpeak = sentences.join('. ');
-      if (textToSpeak.trim()) {
-        speak(textToSpeak);
-      }
-    }
-  }, [speak]);
+  // Enhanced streaming state
+  const streamingStateRef = useRef({
+    currentStreamId: '',
+    accumulatedText: '',
+    spokenText: '',
+    isStreaming: false,
+  });
 
-  // Stop speaking
+  // Stop speaking function (defined early to avoid circular dependency)
   const stop = useCallback(() => {
     if (!speechSynthesis) return;
 
     speechSynthesis.cancel();
     utteranceQueueRef.current = [];
     currentUtteranceRef.current = null;
+    
+    // Reset streaming state
+    streamingStateRef.current = {
+      currentStreamId: '',
+      accumulatedText: '',
+      spokenText: '',
+      isStreaming: false,
+    };
     
     setState(prev => ({ 
       ...prev, 
@@ -227,7 +225,74 @@ export function useTTS(config: TTSConfig = {}) {
       queueLength: 0 
     }));
     
-    console.log('[TTS] Speaking stopped');
+    console.log('[TTS] Speaking stopped and streaming state reset');
+  }, []);
+
+  // Stream text (speak as chunks come in) - Fixed version
+  const speakStream = useCallback((streamId: string, textChunk: string, isComplete: boolean = false) => {
+    console.log('[TTS] Stream chunk received:', { streamId, chunk: textChunk.substring(0, 50), isComplete });
+    
+    // Only reset state if this is genuinely a NEW stream (different ID)
+    if (streamingStateRef.current.currentStreamId !== streamId) {
+      console.log('[TTS] Starting genuinely new stream:', streamId);
+      // Stop any ongoing speech only for truly new streams
+      stop();
+      streamingStateRef.current = {
+        currentStreamId: streamId,
+        accumulatedText: '',
+        spokenText: '',
+        isStreaming: true,
+      };
+    }
+
+    // Update accumulated text (this grows with each chunk)
+    streamingStateRef.current.accumulatedText = textChunk;
+    
+    // Get text that hasn't been spoken yet
+    const spokenLength = streamingStateRef.current.spokenText.length;
+    const unspokenText = textChunk.slice(spokenLength);
+    
+    if (unspokenText.trim()) {
+      // Look for complete sentences in the unspoken text
+      const sentenceEndPattern = /^(.*?[.!?])\s*/;
+      const match = unspokenText.match(sentenceEndPattern);
+      
+      if (match) {
+        // We found a complete sentence, speak it
+        const sentenceToSpeak = match[1].trim();
+        if (sentenceToSpeak && !state.isSpeaking) { // Only speak if not already speaking
+          console.log('[TTS] Speaking new complete sentence:', sentenceToSpeak);
+          speak(sentenceToSpeak);
+          // Update what we've spoken
+          streamingStateRef.current.spokenText = textChunk.slice(0, spokenLength + match[0].length);
+        }
+      } else if (isComplete && unspokenText.trim()) {
+        // Stream is complete, speak any remaining text
+        console.log('[TTS] Speaking final remaining text:', unspokenText.trim());
+        if (!state.isSpeaking) { // Only if not currently speaking
+          speak(unspokenText.trim());
+          streamingStateRef.current.spokenText = textChunk;
+        }
+        streamingStateRef.current.isStreaming = false;
+      }
+    }
+    
+    // If stream is complete and nothing left to speak
+    if (isComplete && streamingStateRef.current.spokenText.length >= textChunk.length) {
+      streamingStateRef.current.isStreaming = false;
+    }
+  }, [speak, stop, state.isSpeaking]);
+
+  // Get streaming progress
+  const getStreamProgress = useCallback(() => {
+    const state = streamingStateRef.current;
+    return {
+      totalText: state.accumulatedText,
+      spokenText: state.spokenText,
+      remainingText: state.accumulatedText.slice(state.spokenText.length),
+      isStreaming: state.isStreaming,
+      progress: state.accumulatedText ? (state.spokenText.length / state.accumulatedText.length) : 0,
+    };
   }, []);
 
   // Pause speaking
@@ -270,6 +335,7 @@ export function useTTS(config: TTSConfig = {}) {
     ...state,
     speak,
     speakStream,
+    getStreamProgress,
     stop,
     pause,
     resume,

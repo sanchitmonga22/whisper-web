@@ -58,7 +58,7 @@ export function useLLMStreaming(config: LLMConfig = {}) {
     return clientRef.current;
   }, [config.apiKey, config.baseUrl]);
 
-  // Send message and stream response using new Responses API
+  // Send message and stream response using Chat Completions API (primary method)
   const sendMessage = useCallback(async (
     userMessage: string, 
     onChunk?: (chunk: string, fullResponse: string) => void,
@@ -69,7 +69,7 @@ export function useLLMStreaming(config: LLMConfig = {}) {
       abortControllerRef.current?.abort();
     }
 
-    console.log('[LLM] Starting streaming request with new Responses API:', userMessage);
+    console.log('[LLM] Starting streaming request with Chat Completions API:', userMessage);
     
     // Create abort controller for this request
     abortControllerRef.current = new AbortController();
@@ -97,85 +97,55 @@ export function useLLMStreaming(config: LLMConfig = {}) {
 
     try {
       const client = getClient();
-
-      // Prepare input for new Responses API
-      let input: any;
       
-      // Check if we have conversation history
-      if (newMessages.length > 1) {
-        // Multi-turn conversation format
-        const conversationMessages = newMessages.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }));
-
-        // Add system prompt if provided
-        if (config.systemPrompt) {
-          conversationMessages.unshift({
-            role: 'system' as const,
-            content: config.systemPrompt
-          });
-        }
-
-        input = conversationMessages;
-      } else {
-        // Single message format
-        if (config.systemPrompt) {
-          input = [
-            { role: 'system' as const, content: config.systemPrompt },
-            { role: 'user' as const, content: userMessage }
-          ];
-        } else {
-          input = userMessage;
-        }
+      // Prepare messages for Chat Completions API
+      const messages: any[] = [];
+      
+      if (config.systemPrompt) {
+        messages.push({
+          role: 'system',
+          content: config.systemPrompt
+        });
       }
 
-      console.log('[LLM] Using new Responses API with model:', config.model || 'gpt-4o');
-      console.log('[LLM] Input format:', typeof input === 'string' ? 'simple text' : `${input.length} messages`);
+      // Add conversation history
+      newMessages.forEach(msg => {
+        messages.push({
+          role: msg.role,
+          content: msg.content
+        });
+      });
 
-      // Use the new Responses API with streaming
-      const stream = await client.responses.create({
+      console.log('[LLM] Using Chat Completions API with model:', config.model || 'gpt-4o');
+
+      const stream = await client.chat.completions.create({
         model: config.model || 'gpt-4o',
-        input: input,
+        messages,
         stream: true,
-        // Note: max_tokens, temperature etc. are handled by the model automatically in the new API
-        ...(config.maxTokens && { max_tokens: config.maxTokens }),
-        ...(config.temperature && { temperature: config.temperature }),
+        max_tokens: config.maxTokens || 1000,
+        temperature: config.temperature || 0.7,
       });
 
       let fullResponse = '';
       let tokenCount = 0;
 
-      // Process streaming response
-      for await (const event of stream) {
+      for await (const chunk of stream) {
         if (abortControllerRef.current?.signal.aborted) {
           break;
         }
 
-        console.log('[LLM] Received event:', event.type);
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          fullResponse += content;
+          tokenCount++;
+          
+          setState(prev => ({
+            ...prev,
+            currentResponse: fullResponse,
+            tokensGenerated: tokenCount,
+          }));
 
-        // Handle different event types from the new API
-        if (event.type === 'response.content.delta') {
-          const content = event.content || '';
-          if (content) {
-            fullResponse += content;
-            tokenCount++;
-            
-            // Update state with new chunk
-            setState(prev => ({
-              ...prev,
-              currentResponse: fullResponse,
-              tokensGenerated: tokenCount,
-            }));
-
-            // Call chunk callback
-            onChunk?.(content, fullResponse);
-          }
-        } else if (event.type === 'response.content.done') {
-          console.log('[LLM] Response content completed');
-          break;
-        } else if (event.type === 'error') {
-          throw new Error(event.error?.message || 'Streaming error');
+          onChunk?.(content, fullResponse);
         }
       }
 
@@ -211,22 +181,15 @@ export function useLLMStreaming(config: LLMConfig = {}) {
         return;
       }
 
-      // Fallback to legacy Chat Completions API if Responses API fails
-      console.warn('[LLM] Responses API failed, falling back to Chat Completions:', error);
-      
-      try {
-        await sendMessageLegacy(userMessage, onChunk, onComplete);
-      } catch (legacyError) {
-        const errorMessage = legacyError instanceof Error ? legacyError.message : 'Unknown error';
-        console.error('[LLM] Both APIs failed:', errorMessage);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[LLM] Chat Completions API failed:', errorMessage);
 
-        setState(prev => ({
-          ...prev,
-          isStreaming: false,
-          isComplete: true,
-          error: errorMessage,
-        }));
-      }
+      setState(prev => ({
+        ...prev,
+        isStreaming: false,
+        isComplete: true,
+        error: errorMessage,
+      }));
     }
   }, [config, state.messages, state.isStreaming, getClient]);
 

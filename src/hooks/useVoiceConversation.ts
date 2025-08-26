@@ -159,19 +159,22 @@ export function useVoiceConversation(config: ConversationConfig) {
           currentUserInput: transcribedText
         }));
 
+        // Generate unique stream ID for this conversation turn
+        const streamId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
         // Send to LLM
         llm.sendMessage(
           transcribedText,
-          // On chunk received
+          // On chunk received - improved streaming coordination
           (chunk: string, fullResponse: string) => {
             setState(prev => ({ 
               ...prev, 
               currentAssistantResponse: fullResponse 
             }));
             
-            // Start speaking early if autoSpeak is enabled
-            if (config.autoSpeak && !tts.isSpeaking) {
-              tts.speakStream(fullResponse, false);
+            // Stream to TTS immediately with proper tracking
+            if (config.autoSpeak) {
+              tts.speakStream(streamId, fullResponse, false);
             }
           },
           // On completion
@@ -198,9 +201,9 @@ export function useVoiceConversation(config: ConversationConfig) {
               }
             }));
 
-            // Speak the complete response if not already speaking
-            if (config.autoSpeak && !tts.isSpeaking) {
-              tts.speak(fullResponse);
+            // Signal TTS that streaming is complete
+            if (config.autoSpeak) {
+              tts.speakStream(streamId, fullResponse, true);
             }
           }
         );
@@ -295,6 +298,9 @@ export function useVoiceConversation(config: ConversationConfig) {
     
     turnStartTimeRef.current = Date.now();
     
+    // Generate unique stream ID for this conversation turn
+    const streamId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
     llm.sendMessage(
       text,
       (chunk: string, fullResponse: string) => {
@@ -303,8 +309,9 @@ export function useVoiceConversation(config: ConversationConfig) {
           currentAssistantResponse: fullResponse 
         }));
         
-        if (config.autoSpeak && !tts.isSpeaking) {
-          tts.speakStream(fullResponse, false);
+        // Stream to TTS with proper tracking
+        if (config.autoSpeak) {
+          tts.speakStream(streamId, fullResponse, false);
         }
       },
       (fullResponse: string) => {
@@ -321,8 +328,9 @@ export function useVoiceConversation(config: ConversationConfig) {
           }
         }));
 
-        if (config.autoSpeak && !tts.isSpeaking) {
-          tts.speak(fullResponse);
+        // Signal TTS that streaming is complete
+        if (config.autoSpeak) {
+          tts.speakStream(streamId, fullResponse, true);
         }
       }
     );
@@ -375,6 +383,7 @@ export function useVoiceConversation(config: ConversationConfig) {
       availableVoices: tts.availableVoices,
       currentVoice: tts.currentVoice,
       isSupported: tts.isSupported,
+      streamProgress: tts.getStreamProgress(),
     },
 
     transcriber: {
