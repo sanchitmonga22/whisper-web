@@ -55,7 +55,7 @@ export class ElevenLabsService {
         }
       );
 
-      return audioResponse as ArrayBuffer;
+      return audioResponse as unknown as ArrayBuffer;
     } catch (error) {
       console.error('Text-to-speech conversion failed:', error);
       throw error;

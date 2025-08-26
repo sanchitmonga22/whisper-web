@@ -68,7 +68,7 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
   const updateStatus = useCallback((newStatus: ConversationStatus) => {
     setStatus(newStatus);
     config.onStatusChange?.(newStatus);
-  }, [config]);
+  }, [config.onStatusChange]);
 
   const addMessage = useCallback((message: ConversationMessage) => {
     setMessages(prev => [...prev, message]);
@@ -84,13 +84,13 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
         avgResponseTime: (prev.avgResponseTime * prev.totalMessages + responseTime) / (prev.totalMessages + 1),
       }));
     }
-  }, [config]);
+  }, [config.onMessage]);
 
   const handleError = useCallback((errorMessage: string) => {
     setError(errorMessage);
     updateStatus('error');
     config.onError?.(errorMessage);
-  }, [config, updateStatus]);
+  }, [config.onError, updateStatus]);
 
   const playAudioResponse = useCallback(async (text: string) => {
     if (!service || !config.autoSpeak) return;
