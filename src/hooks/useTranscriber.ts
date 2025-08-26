@@ -57,6 +57,7 @@ export function useTranscriber(): Transcriber {
 
     const webWorker = useWorker((event) => {
         const message = event.data;
+        console.log("[useTranscriber] Web worker message received:", message.status, message);
         // Update the state with the result
         switch (message.status) {
             case "progress":
@@ -74,6 +75,11 @@ export function useTranscriber(): Transcriber {
             case "complete": {
                 const busy = message.status === "update";
                 const updateMessage = message as TranscriberUpdateData;
+                console.log("[useTranscriber] Transcription update/complete:", {
+                    text: updateMessage.data.text,
+                    chunks: updateMessage.data.chunks,
+                    tps: updateMessage.data.tps
+                });
                 setTranscript({
                     isBusy: busy,
                     text: updateMessage.data.text,
@@ -85,13 +91,16 @@ export function useTranscriber(): Transcriber {
             }
             case "initiate":
                 // Model file start load: add a new progress item to the list.
+                console.log("[useTranscriber] Model loading initiated");
                 setIsModelLoading(true);
                 setProgressItems((prev) => [...prev, message]);
                 break;
             case "ready":
+                console.log("[useTranscriber] Model ready");
                 setIsModelLoading(false);
                 break;
             case "error":
+                console.error("[useTranscriber] Error from worker:", message.data);
                 setIsBusy(false);
                 alert(
                     `An error occurred: "${message.data.message}". Please file a bug report.`,
@@ -99,6 +108,7 @@ export function useTranscriber(): Transcriber {
                 break;
             case "done":
                 // Model file loaded: remove the progress item from the list.
+                console.log("[useTranscriber] File loaded:", message.file);
                 setProgressItems((prev) =>
                     prev.filter((item) => item.file !== message.file),
                 );
@@ -106,6 +116,7 @@ export function useTranscriber(): Transcriber {
 
             default:
                 // initiate/download/done
+                console.log("[useTranscriber] Unhandled message status:", message.status);
                 break;
         }
     });
@@ -134,7 +145,14 @@ export function useTranscriber(): Transcriber {
 
     const postRequest = useCallback(
         async (audioData: AudioBuffer | undefined) => {
+            console.log("[useTranscriber] postRequest called with audioData:", audioData);
             if (audioData) {
+                console.log("[useTranscriber] AudioBuffer details:", {
+                    duration: audioData.duration,
+                    length: audioData.length,
+                    numberOfChannels: audioData.numberOfChannels,
+                    sampleRate: audioData.sampleRate
+                });
                 setTranscript(undefined);
                 setIsBusy(true);
 
@@ -153,6 +171,15 @@ export function useTranscriber(): Transcriber {
                     // If the audio is not stereo, we can just use the first channel:
                     audio = audioData.getChannelData(0);
                 }
+
+                console.log("[useTranscriber] Sending to web worker:", {
+                    audioLength: audio.length,
+                    model,
+                    dtype,
+                    gpu,
+                    subtask: !model.endsWith(".en") ? subtask : null,
+                    language: !model.endsWith(".en") && language !== "auto" ? language : null,
+                });
 
                 webWorker.postMessage({
                     audio,

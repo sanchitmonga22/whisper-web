@@ -4,6 +4,7 @@ import Transcript from "./components/Transcript";
 import { useTranscriber } from "./hooks/useTranscriber";
 import { Trans, useTranslation } from "react-i18next";
 import LanguageSelector from "./components/LanguageSelector";
+import StreamingTranscriber from "./components/StreamingTranscriber";
 import { useEffect, useState } from "react";
 
 function App() {
@@ -11,6 +12,7 @@ function App() {
 
     const { i18n } = useTranslation();
     const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
+    const [mode, setMode] = useState<'classic' | 'streaming'>('streaming');
 
     const handleChangeLanguage = (newLanguage: string) => {
         setCurrentLanguage(newLanguage);
@@ -31,8 +33,39 @@ function App() {
                 <h2 className='mt-3 mb-5 px-4 text-center text-1xl font-semibold tracking-tight text-slate-900 sm:text-2xl'>
                     {t('app.subtitle')}
                 </h2>
-                <AudioManager transcriber={transcriber} />
-                <Transcript transcribedData={transcriber.output} />
+                
+                {/* Mode Toggle */}
+                <div className="flex gap-2 mb-6">
+                    <button
+                        onClick={() => setMode('streaming')}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                            mode === 'streaming' 
+                                ? 'bg-blue-600 text-white' 
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                    >
+                        Streaming Mode
+                    </button>
+                    <button
+                        onClick={() => setMode('classic')}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                            mode === 'classic' 
+                                ? 'bg-blue-600 text-white' 
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                    >
+                        Classic Mode
+                    </button>
+                </div>
+
+                {mode === 'streaming' ? (
+                    <StreamingTranscriber transcriber={transcriber} />
+                ) : (
+                    <>
+                        <AudioManager transcriber={transcriber} />
+                        <Transcript transcribedData={transcriber.output} />
+                    </>
+                )}
             </div>
 
             <footer className='text-center m-4'>
