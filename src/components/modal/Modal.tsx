@@ -41,7 +41,7 @@ export default function Modal({
                     leaveFrom='opacity-100'
                     leaveTo='opacity-0'
                 >
-                    <div className='fixed inset-0 bg-black bg-opacity-25' />
+                    <div className='fixed inset-0 bg-black/25 dark:bg-black/50' />
                 </TransitionChild>
 
                 <div className='fixed inset-0 overflow-y-auto'>
@@ -55,14 +55,14 @@ export default function Modal({
                             leaveFrom='opacity-100 scale-100'
                             leaveTo='opacity-0 scale-95'
                         >
-                            <DialogPanel className='w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all'>
+                            <DialogPanel className='w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-xl transition-all'>
                                 <DialogTitle
                                     as='h3'
-                                    className='text-lg font-medium leading-6 text-gray-900'
+                                    className='text-lg font-medium leading-6 text-gray-900 dark:text-gray-100'
                                 >
                                     {title}
                                 </DialogTitle>
-                                <div className='modal-content mt-3 text-sm text-gray-500'>
+                                <div className='modal-content mt-3 text-sm text-gray-500 dark:text-gray-300'>
                                     {content}
                                 </div>
 
@@ -87,7 +87,7 @@ export default function Modal({
                                     )}
                                     <button
                                         type='button'
-                                        className='inline-flex ml-2 justify-center rounded-md border border-transparent bg-indigo-100 px-4 py-2 text-sm font-medium text-indigo-900 hover:bg-indigo-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 transition-all duration-300'
+                                        className='inline-flex ml-2 justify-center rounded-md border border-transparent bg-indigo-100 dark:bg-gray-700 px-4 py-2 text-sm font-medium text-indigo-900 dark:text-indigo-200 hover:bg-indigo-200 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 transition-all duration-300'
                                         onClick={onClose}
                                     >
                                         {t('modal.close')}
@@ -95,7 +95,7 @@ export default function Modal({
                                 {cacheSize != 0 && (
                                     <button
                                         type='button'
-                                        className='inline-flex justify-center rounded-md border border-transparent bg-red-100 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition-all duration-300'
+                                        className='inline-flex justify-center rounded-md border border-transparent bg-red-100 dark:bg-red-900/30 px-4 py-2 text-sm font-medium text-red-900 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition-all duration-300'
                                         onClick={onClear}
                                     >
                                         {cacheSize !== -1

@@ -236,7 +236,7 @@ export default function StreamingTranscriber({
                         <div className="animate-pulse">
                             <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                         </div>
-                        <span className="text-sm text-gray-600">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
                             {isProcessing ? "Processing..." : "Listening..."}
                         </span>
                     </div>
@@ -247,8 +247,8 @@ export default function StreamingTranscriber({
                 <div className="w-full max-w-2xl">
                     {transcriber.progressItems.map((item) => (
                         <div key={item.file} className="mb-2">
-                            <div className="text-sm text-gray-600 mb-1">Loading: {item.file}</div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Loading: {item.file}</div>
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                                 <div 
                                     className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                                     style={{ width: `${item.progress || 0}%` }}
@@ -260,9 +260,9 @@ export default function StreamingTranscriber({
             )}
 
             {streamingTranscript && (
-                <div className="w-full max-w-4xl p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Live Transcript:</h3>
-                    <p className="text-gray-900 whitespace-pre-wrap leading-relaxed">
+                <div className="w-full max-w-4xl p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Live Transcript:</h3>
+                    <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
                         {streamingTranscript}
                     </p>
                 </div>

@@ -20,7 +20,7 @@ export default function AudioPlayer(props: {
             <audio
                 ref={audioPlayer}
                 controls
-                className='w-full h-14 rounded-lg bg-white shadow-xl shadow-black/5 ring-1 ring-slate-700/10'
+                className='w-full h-14 rounded-lg bg-white dark:bg-gray-800 shadow-xl shadow-black/5 dark:shadow-black/20 ring-1 ring-slate-700/10 dark:ring-slate-600/20'
             >
                 <source ref={audioSource} type={props.mimeType}></source>
             </audio>

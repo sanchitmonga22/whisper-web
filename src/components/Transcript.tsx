@@ -73,9 +73,9 @@ export default function Transcript({ transcribedData }: Props) {
                 transcribedData.chunks.map((chunk, i) => (
                     <div
                         key={`${i}-${chunk.text}`}
-                        className={`w-full flex flex-row mb-2 ${transcribedData?.isBusy ? "bg-gray-100" : "bg-white"} rounded-lg p-4 shadow-xl shadow-black/5 ring-1 ring-slate-700/10`}
+                        className={`w-full flex flex-row mb-2 ${transcribedData?.isBusy ? "bg-gray-100 dark:bg-gray-700" : "bg-white dark:bg-gray-800"} rounded-lg p-4 shadow-xl shadow-black/5 dark:shadow-black/20 ring-1 ring-slate-700/10 dark:ring-slate-600/20`}
                     >
-                        <div className='mr-5'>
+                        <div className='mr-5 text-gray-500 dark:text-gray-400'>
                             {formatAudioTimestamp(chunk.timestamp[0])}
                         </div>
                         {chunk.text}
@@ -96,10 +96,10 @@ export default function Transcript({ transcribedData }: Props) {
             )}
             {transcribedData?.tps && (
                 <p className='text-sm text-center mt-4'>
-                    <span className='font-semibold text-black'>
+                    <span className='font-semibold text-black dark:text-white'>
                         {transcribedData?.tps.toFixed(2)}
                     </span>{" "}
-                    <span className='text-gray-500'>
+                    <span className='text-gray-500 dark:text-gray-400'>
                         {t("transcript.tokens_per_second")}
                     </span>
                 </p>

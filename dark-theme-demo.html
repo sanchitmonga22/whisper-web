@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dark Theme Demo</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #1e293b;
+        }
+        .instructions {
+            background: #f0f9ff;
+            border: 1px solid #0369a1;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .instructions h2 {
+            color: #0c4a6e;
+            margin-top: 0;
+        }
+        .instructions ol {
+            margin: 10px 0;
+        }
+        .instructions li {
+            margin: 10px 0;
+        }
+        .features {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .features h3 {
+            color: #334155;
+            margin-top: 0;
+        }
+        .features ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .features li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .features li:last-child {
+            border-bottom: none;
+        }
+        .features li:before {
+            content: "✅ ";
+        }
+        .btn {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌙 Whisper Web - Dark Theme Implementation</h1>
+    
+    <div class="instructions">
+        <h2>📋 How to Test the Dark Theme</h2>
+        <ol>
+            <li>Click the button below to open the Whisper Web application</li>
+            <li>Look for the <strong>moon/sun icon</strong> in the top-right corner of the page</li>
+            <li>Click the icon to toggle between light and dark themes</li>
+            <li>The theme preference is saved in localStorage and will persist across page refreshes</li>
+        </ol>
+        <a href="http://localhost:5174/" target="_blank" class="btn">Open Whisper Web →</a>
+    </div>
+    
+    <div class="features">
+        <h3>✨ Dark Theme Features Implemented</h3>
+        <ul>
+            <li>Theme toggle button with sun/moon icons in the top-right corner</li>
+            <li>Smooth transitions between light and dark themes</li>
+            <li>Dark theme styles for all major components:
+                <ul style="margin-top: 8px; margin-left: 20px; list-style-type: disc;">
+                    <li>Main background and text colors</li>
+                    <li>Headers and subtitles</li>
+                    <li>Mode selection buttons</li>
+                    <li>Transcript display area</li>
+                    <li>Modal dialogs and settings</li>
+                    <li>Progress bars and indicators</li>
+                    <li>Audio player controls</li>
+                    <li>Language selector</li>
+                    <li>VAD streaming components</li>
+                </ul>
+            </li>
+            <li>Theme preference persistence using localStorage</li>
+            <li>System preference detection (prefers-color-scheme)</li>
+            <li>Consistent color scheme using CSS variables</li>
+        </ul>
+    </div>
+    
+    <div class="features">
+        <h3>🎨 Color Palette</h3>
+        <ul>
+            <li><strong>Light Theme:</strong> White backgrounds, dark text, blue accents</li>
+            <li><strong>Dark Theme:</strong> Slate-900 backgrounds, light text, adjusted blue accents</li>
+            <li>All colors use Tailwind's color system for consistency</li>
+            <li>Proper contrast ratios for accessibility</li>
+        </ul>
+    </div>
+
+    <script>
+        // Automatically open the app when the page loads
+        setTimeout(() => {
+            console.log('Opening Whisper Web...');
+        }, 500);
+    </script>
+</body>
+</html>

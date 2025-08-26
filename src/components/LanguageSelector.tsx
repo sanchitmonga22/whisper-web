@@ -24,19 +24,19 @@ export default function LanguageSelector(props: {
     return (
         <div className={props.className}>
             <Menu>
-                <MenuButton className='flex items-center justify-center rounded-lg p-2 bg-blue text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 mr-0'>
+                <MenuButton className='flex items-center justify-center rounded-lg p-2 bg-blue text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all duration-200 mr-0'>
                     <div className='w-7 h-7'>
                         {languageFlags[props.currentLanguage]}
                     </div>
                 </MenuButton>
-                <MenuItems anchor='bottom end' className='text-right'>
+                <MenuItems anchor='bottom end' className='text-right bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg p-2'>
                     {availableLanguages.map((language) => (
                         <MenuItem
                             key={language}
                             disabled={language === props.currentLanguage}
                         >
                             <button
-                                className={`flex items-center justify-end block w-full text-right data-[focus]:bg-blue-100 mb-1 ${language === props.currentLanguage ? "font-bold" : ""}`}
+                                className={`flex items-center justify-end block w-full text-right text-gray-700 dark:text-gray-300 data-[focus]:bg-blue-100 dark:data-[focus]:bg-blue-900/30 mb-1 px-2 py-1 rounded ${language === props.currentLanguage ? "font-bold" : ""}`}
                                 onClick={() => props.onChangeLanguage(language)}
                             >
                                 <span className='mr-2'>

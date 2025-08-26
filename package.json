@@ -14,6 +14,7 @@
   "dependencies": {
     "@headlessui/react": "^2.2.6",
     "@huggingface/transformers": "3.7.0",
+    "@ricky0123/vad-web": "^0.0.24",
     "axios": "^1.11.0",
     "i18next": "^25.3.2",
     "react": "^19.1.1",

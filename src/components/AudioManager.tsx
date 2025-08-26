@@ -201,7 +201,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                     </div>
                     {props.transcriber.progressItems.length > 0 && (
                         <div className='relative z-10 p-4 w-full text-center'>
-                            <label>{t("manager.loading")}</label>
+                            <label className="text-slate-900 dark:text-slate-100">{t("manager.loading")}</label>
                             {props.transcriber.progressItems.map((data) => (
                                 <div key={data.file}>
                                     <Progress
@@ -216,7 +216,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
             )}
 
             <InfoTile
-                className='fixed bottom-4 right-28'
+                className='fixed bottom-4 right-28 z-20'
                 icon={<InfoIcon />}
                 title={t("manager.info_title")}
                 content={
@@ -237,7 +237,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                         you can try a bigger one and see if it works on your
                         device. For most languages, it is best to use{" "}
                         <a
-                            className='underline'
+                            className='underline text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300'
                             target='_blank'
                             href='https://openai.com/index/whisper/'
                         >
@@ -247,7 +247,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                         recommended to use versions that have been specifically
                         trained for them. The Swedish models are called{" "}
                         <a
-                            className='underline'
+                            className='underline text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300'
                             target='_blank'
                             href='https://huggingface.co/KBLab/kb-whisper-tiny'
                         >
@@ -255,7 +255,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                         </a>{" "}
                         and have been trained by the{" "}
                         <a
-                            className='underline'
+                            className='underline text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300'
                             target='_blank'
                             href='https://kb.se/samverkan-och-utveckling/nytt-fran-kb/nyheter-samverkan-och-utveckling/2025-02-20-valtranad-ai-modell-forvandlar-tal-till-text.html'
                         >
@@ -264,7 +264,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                         on data from parliament debates and the Swedish public
                         service. The Norwegian ones are named{" "}
                         <a
-                            className='underline'
+                            className='underline text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300'
                             target='_blank'
                             href='https://huggingface.co/collections/NbAiLab/nb-whisper-65cb8322877f943912afcd9f'
                         >
@@ -272,7 +272,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                         </a>{" "}
                         and have also been trained by the country's{" "}
                         <a
-                            className='underline'
+                            className='underline text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300'
                             target='_blank'
                             href='https://arxiv.org/abs/2402.01917'
                         >
@@ -280,7 +280,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                         </a>
                         . This project's source code is available on{" "}
                         <a
-                            className='underline'
+                            className='underline text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300'
                             target='_blank'
                             href='https://github.com/PierreMesure/whisper-web'
                         >
@@ -289,7 +289,7 @@ export function AudioManager(props: { transcriber: Transcriber }) {
                         . Feel free to reuse or contribute to it. The website is
                         hosted on{" "}
                         <a
-                            className='underline'
+                            className='underline text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300'
                             target='_blank'
                             href='https://www.statichost.eu'
                         >
@@ -547,7 +547,7 @@ function SettingsModal(props: {
 }
 
 function VerticalBar() {
-    return <div className='w-[1px] bg-slate-200'></div>;
+    return <div className='w-[1px] bg-slate-200 dark:bg-slate-600'></div>;
 }
 
 function AudioDataBar(props: { progress: number }) {
@@ -766,7 +766,7 @@ function Tile(props: {
     return (
         <button
             onClick={props.onClick}
-            className='flex items-center justify-center rounded-lg p-2 bg-blue text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 mr-0'
+            className='flex items-center justify-center rounded-lg p-2 bg-blue text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all duration-200 mr-0'
         >
             <div className='w-7 h-7'>{props.icon}</div>
             {props.text && (
