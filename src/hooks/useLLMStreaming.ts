@@ -230,8 +230,11 @@ export function useLLMStreaming(config: LLMConfig = {}) {
   return {
     ...state,
     sendMessage,
+    processMessage: sendMessage, // Alias for compatibility
     stopStreaming,
+    stop: stopStreaming, // Alias for compatibility
     clearMessages,
+    clearHistory: clearMessages, // Alias for compatibility
     addMessage,
   };
 }
