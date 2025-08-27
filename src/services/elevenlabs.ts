@@ -24,40 +24,78 @@ export class ElevenLabsService {
   private conversationHistory: ConversationMessage[] = [];
 
   constructor(config: ElevenLabsConfig) {
+    console.log('[ElevenLabsService] Constructor called with:', {
+      hasApiKey: !!config.apiKey,
+      apiKeyLength: config.apiKey?.length,
+      voiceId: config.voiceId,
+      modelId: config.modelId
+    });
+    
+    if (!config.apiKey) {
+      throw new Error('[ElevenLabsService] API key is required');
+    }
+    
     this.config = {
       modelId: 'eleven_multilingual_v2',
       voiceId: 'JBFqnCBsd6RMkjVDRZzb', // Default voice
       ...config,
     };
     
-    this.client = new ElevenLabsClient({
-      apiKey: this.config.apiKey,
-    });
+    console.log('[ElevenLabsService] Creating ElevenLabsClient...');
+    try {
+      this.client = new ElevenLabsClient({
+        apiKey: this.config.apiKey,
+      });
+      console.log('[ElevenLabsService] Client created successfully');
+    } catch (error) {
+      console.error('[ElevenLabsService] Failed to create client:', error);
+      throw error;
+    }
   }
 
   async getAvailableVoices() {
+    console.log('[ElevenLabsService] getAvailableVoices called');
     try {
+      console.log('[ElevenLabsService] Fetching voices from API...');
       const response = await this.client.voices.getAll();
+      console.log('[ElevenLabsService] Voices response:', {
+        hasVoices: !!response?.voices,
+        count: response?.voices?.length || 0
+      });
       return response.voices || [];
     } catch (error) {
-      console.error('Failed to fetch voices:', error);
+      console.error('[ElevenLabsService] Failed to fetch voices:', error);
       return [];
     }
   }
 
   async textToSpeech(text: string, voiceId?: string): Promise<ArrayBuffer> {
+    console.log('[ElevenLabsService] textToSpeech called:', {
+      textLength: text.length,
+      voiceId: voiceId || this.config.voiceId,
+      modelId: this.config.modelId
+    });
+    
     try {
+      const voice = voiceId || this.config.voiceId!;
+      console.log('[ElevenLabsService] Calling client.textToSpeech.convert...');
+      
       const audioResponse = await this.client.textToSpeech.convert(
-        voiceId || this.config.voiceId!,
+        voice,
         {
           text,
           modelId: this.config.modelId,
         }
       );
 
+      console.log('[ElevenLabsService] TTS response received:', {
+        hasResponse: !!audioResponse,
+        responseType: typeof audioResponse
+      });
+      
       return audioResponse as unknown as ArrayBuffer;
     } catch (error) {
-      console.error('Text-to-speech conversion failed:', error);
+      console.error('[ElevenLabsService] Text-to-speech conversion failed:', error);
       throw error;
     }
   }
@@ -80,10 +118,21 @@ export class ElevenLabsService {
   }
 
   async speechToText(audioBlob: Blob): Promise<SpeechToTextResult> {
+    console.log('[ElevenLabsService] speechToText called:', {
+      blobSize: audioBlob.size,
+      blobType: audioBlob.type,
+      timestamp: new Date().toISOString()
+    });
+    
+    if (audioBlob.size === 0) {
+      console.error('[ElevenLabsService] Empty audio blob received');
+      throw new Error('Cannot process empty audio');
+    }
+    
     try {
       // Determine file extension based on MIME type
       let filename = 'recording';
-      let mimeType = audioBlob.type || 'audio/webm';
+      const mimeType = audioBlob.type || 'audio/webm';
       
       if (mimeType.includes('webm')) {
         filename = 'recording.webm';
@@ -98,7 +147,7 @@ export class ElevenLabsService {
         filename = 'recording.webm';
       }
       
-      console.log(`Sending audio file: ${filename}, type: ${mimeType}, size: ${audioBlob.size} bytes`);
+      console.log(`[ElevenLabsService] Preparing audio file: ${filename}, type: ${mimeType}, size: ${audioBlob.size} bytes`);
       
       const audioFile = new File([audioBlob], filename, { type: mimeType });
       
@@ -107,12 +156,26 @@ export class ElevenLabsService {
       formData.append('model_id', 'scribe_v1'); // Required model ID
       formData.append('tag_audio_events', 'false'); // Disable audio event tagging for cleaner output
       
-      const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+      const url = 'https://api.elevenlabs.io/v1/speech-to-text';
+      console.log('[ElevenLabsService] Sending STT request to:', url);
+      console.log('[ElevenLabsService] FormData contents:', {
+        file: filename,
+        model_id: 'scribe_v1',
+        tag_audio_events: 'false'
+      });
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'xi-api-key': this.config.apiKey,
         },
         body: formData,
+      });
+      
+      console.log('[ElevenLabsService] STT response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
       });
 
       if (!response.ok) {
@@ -122,13 +185,22 @@ export class ElevenLabsService {
       }
 
       const data = await response.json();
+      console.log('[ElevenLabsService] STT result:', {
+        hasText: !!data.text,
+        textLength: data.text?.length || 0,
+        text: data.text
+      });
+      
       return {
         text: data.text || '',
         confidence: data.confidence || 0.9,
         isFinal: true,
       };
     } catch (error) {
-      console.error('Speech-to-text conversion failed:', error);
+      console.error('[ElevenLabsService] Speech-to-text conversion failed:', error);
+      if (error instanceof Error) {
+        console.error('[ElevenLabsService] Error stack:', error.stack);
+      }
       throw error;
     }
   }

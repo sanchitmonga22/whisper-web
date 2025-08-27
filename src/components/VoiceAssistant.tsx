@@ -461,7 +461,7 @@ export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
           <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
             Conversation Stats
           </h3>
-          <div className="grid grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-4 gap-4 text-sm">
             <div>
               <div className="font-medium text-gray-700 dark:text-gray-300">Total Turns</div>
               <div className="text-2xl font-bold text-blue-600">{conversation.stats.totalTurns}</div>
@@ -476,6 +476,12 @@ export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
               <div className="font-medium text-gray-700 dark:text-gray-300">Avg Response</div>
               <div className="text-2xl font-bold text-purple-600">
                 {Math.round(conversation.stats.avgResponseTime)}ms
+              </div>
+            </div>
+            <div>
+              <div className="font-medium text-gray-700 dark:text-gray-300">Avg STT</div>
+              <div className="text-2xl font-bold text-orange-600">
+                {Math.round(conversation.stats.avgSTTTime || 0)}ms
               </div>
             </div>
           </div>

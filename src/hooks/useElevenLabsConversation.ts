@@ -34,6 +34,13 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
     avgResponseTime: 0,
   });
 
+  console.log('[useElevenLabsConversation] Hook initialized with config:', {
+    hasApiKey: !!config.apiKey,
+    hasOpenaiKey: !!config.openaiApiKey,
+    voiceId: config.voiceId,
+    autoSpeak: config.autoSpeak
+  });
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -42,27 +49,44 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
 
   // Initialize service when API key changes
   useEffect(() => {
+    console.log('[useElevenLabsConversation] Effect: Initializing service', {
+      hasApiKey: !!config.apiKey,
+      voiceId: config.voiceId
+    });
+    
     if (config.apiKey) {
       try {
+        console.log('[useElevenLabsConversation] Creating new ElevenLabsService');
         const newService = new ElevenLabsService(config);
         setService(newService);
         setError(null);
+        console.log('[useElevenLabsConversation] Service created successfully');
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to initialize ElevenLabs service');
+        const errorMsg = err instanceof Error ? err.message : 'Failed to initialize ElevenLabs service';
+        console.error('[useElevenLabsConversation] Service creation failed:', errorMsg, err);
+        setError(errorMsg);
       }
+    } else {
+      console.log('[useElevenLabsConversation] No API key provided, service not initialized');
     }
   }, [config.apiKey, config.voiceId, config.modelId]);
 
   // Load available voices
   useEffect(() => {
     const loadVoices = async () => {
+      console.log('[useElevenLabsConversation] Effect: Loading voices', { hasService: !!service });
+      
       if (service) {
         try {
+          console.log('[useElevenLabsConversation] Fetching available voices...');
           const availableVoices = await service.getAvailableVoices();
+          console.log('[useElevenLabsConversation] Voices loaded:', availableVoices.length);
           setVoices(availableVoices);
         } catch (err) {
-          console.error('Failed to load voices:', err);
+          console.error('[useElevenLabsConversation] Failed to load voices:', err);
         }
+      } else {
+        console.log('[useElevenLabsConversation] No service available, skipping voice load');
       }
     };
     loadVoices();
@@ -212,7 +236,24 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
   }, [service, updateStatus, addMessage, processWithLLM, playAudioResponse, handleError]);
 
   const startListening = useCallback(async () => {
+    console.log('[useElevenLabsConversation] startListening called', {
+      hasService: !!service,
+      isActive,
+      currentStatus: status
+    });
+    
+    if (!service) {
+      console.error('[useElevenLabsConversation] Cannot start listening: no service');
+      return;
+    }
+    
+    if (!isActive) {
+      console.error('[useElevenLabsConversation] Cannot start listening: conversation not active');
+      return;
+    }
+    
     try {
+      console.log('[useElevenLabsConversation] Requesting microphone access...');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           channelCount: 1,
@@ -276,33 +317,62 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
 
       mediaRecorderRef.current.start();
       updateStatus('listening');
+      console.log('[useElevenLabsConversation] Recording started successfully');
     } catch (err) {
-      handleError(`Microphone Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errorMsg = `Microphone Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      console.error('[useElevenLabsConversation] Microphone error:', err);
+      handleError(errorMsg);
     }
-  }, [service, updateStatus, processUserInput, handleError]);
+  }, [service, updateStatus, processUserInput, handleError, isActive, status]);
 
   const stopListening = useCallback(() => {
+    console.log('[useElevenLabsConversation] stopListening called', {
+      hasRecorder: !!mediaRecorderRef.current,
+      recorderState: mediaRecorderRef.current?.state
+    });
+    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
+      console.log('[useElevenLabsConversation] Recording stopped');
+    } else {
+      console.log('[useElevenLabsConversation] No active recording to stop');
     }
   }, []);
 
   const startConversation = useCallback(async () => {
+    console.log('[useElevenLabsConversation] startConversation called', {
+      hasService: !!service,
+      hasApiKey: !!config.apiKey,
+      currentStatus: status,
+      currentIsActive: isActive
+    });
+    
     if (!service || !config.apiKey) {
-      handleError('ElevenLabs service not initialized or API key missing');
+      const errorMsg = 'ElevenLabs service not initialized or API key missing';
+      console.error('[useElevenLabsConversation] Cannot start:', errorMsg, {
+        service: service ? 'EXISTS' : 'NULL',
+        apiKey: config.apiKey ? 'EXISTS' : 'MISSING'
+      });
+      handleError(errorMsg);
       return;
     }
 
     try {
+      console.log('[useElevenLabsConversation] Starting conversation...');
       setIsActive(true);
       setError(null);
       updateStatus('idle'); // Start in idle state, not listening yet
+      console.log('[useElevenLabsConversation] Conversation started successfully');
     } catch (err) {
-      handleError(`Failed to start conversation: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errorMsg = `Failed to start conversation: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      console.error('[useElevenLabsConversation] Start conversation error:', err);
+      handleError(errorMsg);
     }
-  }, [service, config.apiKey, handleError, updateStatus]);
+  }, [service, config.apiKey, handleError, updateStatus, status, isActive]);
 
   const stopConversation = useCallback(() => {
+    console.log('[useElevenLabsConversation] stopConversation called');
+    
     setIsActive(false);
     updateStatus('idle');
     
@@ -313,13 +383,17 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
+      console.log('[useElevenLabsConversation] Audio playback stopped');
     }
     
     // Clean up media stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
+      console.log('[useElevenLabsConversation] Media stream cleaned up');
     }
+    
+    console.log('[useElevenLabsConversation] Conversation stopped successfully');
   }, [updateStatus, stopListening]);
 
   const sendTextMessage = useCallback(async (text: string) => {

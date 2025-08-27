@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ElevenLabs Assistant Debug Console</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            margin: 0;
+        }
+        h1 { 
+            color: #7c3aed; 
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        #console {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            padding: 15px;
+            height: 70vh;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid transparent;
+        }
+        .log-entry.error {
+            color: #ff5555;
+            background: rgba(255, 85, 85, 0.1);
+            border-left-color: #ff5555;
+        }
+        .log-entry.warn {
+            color: #ffb86c;
+            background: rgba(255, 184, 108, 0.1);
+            border-left-color: #ffb86c;
+        }
+        .log-entry.info {
+            color: #8be9fd;
+            background: rgba(139, 233, 253, 0.1);
+            border-left-color: #8be9fd;
+        }
+        .log-entry.debug {
+            color: #bd93f9;
+            background: rgba(189, 147, 249, 0.1);
+            border-left-color: #bd93f9;
+        }
+        .timestamp {
+            color: #6272a4;
+            font-size: 10px;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            background: #7c3aed;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #6b21a8;
+        }
+        .status {
+            background: #333;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .key-indicator {
+            display: inline-block;
+            padding: 2px 8px;
+            margin: 0 5px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        .key-set { background: #50fa7b; color: #000; }
+        .key-missing { background: #ff5555; color: #fff; }
+    </style>
+</head>
+<body>
+    <h1>🔍 ElevenLabs Assistant Debug Console</h1>
+    
+    <div class="status">
+        <strong>API Keys Status:</strong>
+        <span id="elevenlabs-status" class="key-indicator">Checking...</span>
+        <span id="openai-status" class="key-indicator">Checking...</span>
+        <button onclick="checkKeys()">Refresh Status</button>
+        <button onclick="clearConsole()">Clear Console</button>
+        <button onclick="openApp()">Open App</button>
+    </div>
+
+    <div id="console">
+        <div class="log-entry info">Debug console initialized. Monitoring ElevenLabs Assistant...</div>
+    </div>
+
+    <script>
+        const consoleDiv = document.getElementById('console');
+        let logCount = 0;
+
+        // Override console methods to capture logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        function formatTimestamp() {
+            return new Date().toISOString().split('T')[1].slice(0, -1);
+        }
+
+        function addLogEntry(message, type = 'log') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            
+            const timestamp = document.createElement('span');
+            timestamp.className = 'timestamp';
+            timestamp.textContent = `[${formatTimestamp()}] `;
+            
+            const content = document.createElement('span');
+            
+            // Handle different message types
+            if (typeof message === 'object') {
+                content.textContent = JSON.stringify(message, null, 2);
+            } else {
+                content.textContent = message;
+            }
+            
+            entry.appendChild(timestamp);
+            entry.appendChild(content);
+            consoleDiv.appendChild(entry);
+            
+            // Auto-scroll to bottom
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            
+            logCount++;
+            if (logCount > 1000) {
+                // Remove old logs to prevent memory issues
+                consoleDiv.removeChild(consoleDiv.firstChild);
+                logCount--;
+            }
+        }
+
+        // Override console methods
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
+            ).join(' ');
+            
+            if (message.includes('[ElevenLabs')) {
+                addLogEntry(message, 'debug');
+            } else if (message.includes('Status changed')) {
+                addLogEntry(message, 'info');
+            } else {
+                addLogEntry(message, 'log');
+            }
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
+            ).join(' ');
+            addLogEntry(message, 'error');
+        };
+
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
+            ).join(' ');
+            addLogEntry(message, 'warn');
+        };
+
+        // Check API keys
+        function checkKeys() {
+            const elevenKey = localStorage.getItem('elevenlabs_api_key');
+            const openaiKey = localStorage.getItem('openai_api_key');
+            
+            const elevenStatus = document.getElementById('elevenlabs-status');
+            const openaiStatus = document.getElementById('openai-status');
+            
+            if (elevenKey) {
+                elevenStatus.textContent = `ElevenLabs: SET (${elevenKey.substring(0, 7)}...)`;
+                elevenStatus.className = 'key-indicator key-set';
+            } else {
+                elevenStatus.textContent = 'ElevenLabs: NOT SET';
+                elevenStatus.className = 'key-indicator key-missing';
+            }
+            
+            if (openaiKey) {
+                openaiStatus.textContent = `OpenAI: SET (${openaiKey.substring(0, 7)}...)`;
+                openaiStatus.className = 'key-indicator key-set';
+            } else {
+                openaiStatus.textContent = 'OpenAI: NOT SET';
+                openaiStatus.className = 'key-indicator key-missing';
+            }
+            
+            addLogEntry(`Key check: ElevenLabs=${!!elevenKey}, OpenAI=${!!openaiKey}`, 'info');
+        }
+
+        function clearConsole() {
+            consoleDiv.innerHTML = '<div class="log-entry info">Console cleared.</div>';
+            logCount = 1;
+        }
+
+        function openApp() {
+            window.open('http://localhost:5174', '_blank');
+        }
+
+        // Initial check
+        checkKeys();
+
+        // Listen for messages from the app iframe (if embedded)
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'elevenlabs-log') {
+                addLogEntry(event.data.message, event.data.level || 'log');
+            }
+        });
+
+        // Monitor localStorage changes
+        window.addEventListener('storage', (event) => {
+            if (event.key && event.key.includes('elevenlabs')) {
+                addLogEntry(`localStorage changed: ${event.key} = ${event.newValue?.substring(0, 50)}...`, 'info');
+                checkKeys();
+            }
+        });
+
+        addLogEntry('Open the app in another tab and watch the logs here!', 'info');
+        addLogEntry('All [ElevenLabs*] prefixed logs will appear in purple', 'debug');
+        addLogEntry('Errors will appear in red', 'error');
+        addLogEntry('Warnings will appear in orange', 'warn');
+    </script>
+</body>
+</html>

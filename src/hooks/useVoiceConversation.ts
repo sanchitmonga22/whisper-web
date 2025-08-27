@@ -41,6 +41,7 @@ export interface ConversationState {
     totalTurns: number;
     avgResponseTime: number;
     lastResponseTime: number;
+    avgSTTTime: number;
   };
   performance: PerformanceMetrics;
 }
@@ -59,6 +60,7 @@ export function useVoiceConversation(config: ConversationConfig) {
       totalTurns: 0,
       avgResponseTime: 0,
       lastResponseTime: 0,
+      avgSTTTime: 0,
     },
     performance: {
       vadDetectionTime: 0,
@@ -72,8 +74,9 @@ export function useVoiceConversation(config: ConversationConfig) {
   });
 
   const audioContextRef = useRef<AudioContext | null>(null);
-  const turnStartTimeRef = useRef<number>(0);
+  // Removed turnStartTimeRef - using performanceRef.pipelineStartTime instead
   const responseTimesRef = useRef<number[]>([]);
+  const sttTimesRef = useRef<number[]>([]);
   const lastTTSEndTimeRef = useRef<number>(0);
   const TTS_COOLDOWN_MS = 300; // Ultra-fast cooldown for quick back-and-forth
   
@@ -135,7 +138,7 @@ export function useVoiceConversation(config: ConversationConfig) {
       
       // Track performance
       performanceRef.current.speechStartTime = now;
-      performanceRef.current.pipelineStartTime = now;
+      // Don't set pipelineStartTime here - it should start when processing begins
       
       setState(prev => ({ 
         ...prev, 
@@ -143,8 +146,6 @@ export function useVoiceConversation(config: ConversationConfig) {
         currentUserInput: '',
         error: null
       }));
-      
-      turnStartTimeRef.current = now;
     },
     
     onSpeechEnd: async (audio: Float32Array) => {
@@ -184,6 +185,8 @@ export function useVoiceConversation(config: ConversationConfig) {
       
       // Track STT start time AFTER VAD processing
       performanceRef.current.sttStartTime = Date.now();
+      // Pipeline starts when processing begins (after speech ends)
+      performanceRef.current.pipelineStartTime = Date.now();
 
       try {
         // Convert VAD audio to AudioBuffer for Whisper
@@ -254,6 +257,14 @@ export function useVoiceConversation(config: ConversationConfig) {
           sttProcessingTime: `${sttTime}ms`
         });
         
+        // Track STT time for averaging
+        if (sttTime > 0) {
+          sttTimesRef.current.push(sttTime);
+        }
+        const avgSTTTime = sttTimesRef.current.length > 0 
+          ? sttTimesRef.current.reduce((a, b) => a + b, 0) / sttTimesRef.current.length 
+          : 0;
+        
         setState(prev => ({ 
           ...prev, 
           isProcessingSTT: false,
@@ -262,6 +273,10 @@ export function useVoiceConversation(config: ConversationConfig) {
           performance: {
             ...prev.performance,
             sttProcessingTime: sttTime,
+          },
+          stats: {
+            ...prev.stats,
+            avgSTTTime: avgSTTTime,
           }
         }));
 
@@ -314,7 +329,8 @@ export function useVoiceConversation(config: ConversationConfig) {
             // This excludes TTS speaking time as that's not part of processing latency
             const totalPipelineTime = now - performanceRef.current.pipelineStartTime;
             
-            const responseTime = Date.now() - turnStartTimeRef.current;
+            // Use totalPipelineTime for response time (processing only, excludes speech duration)
+            const responseTime = totalPipelineTime;
             responseTimesRef.current.push(responseTime);
             
             const avgTime = responseTimesRef.current.reduce((a, b) => a + b, 0) / responseTimesRef.current.length;
@@ -331,6 +347,7 @@ export function useVoiceConversation(config: ConversationConfig) {
               isProcessingLLM: false,
               currentAssistantResponse: fullResponse,
               stats: {
+                ...prev.stats,
                 totalTurns: prev.stats.totalTurns + 1,
                 avgResponseTime: avgTime,
                 lastResponseTime: responseTime,
@@ -350,12 +367,30 @@ export function useVoiceConversation(config: ConversationConfig) {
         );
       } else {
         console.warn('[Conversation] Empty transcription received');
+        
+        // Still track STT time even for empty transcriptions
+        const now = Date.now();
+        const sttTime = performanceRef.current.sttStartTime ? now - performanceRef.current.sttStartTime : 0;
+        if (sttTime > 0) {
+          sttTimesRef.current.push(sttTime);
+        }
+        const avgSTTTime = sttTimesRef.current.length > 0 
+          ? sttTimesRef.current.reduce((a, b) => a + b, 0) / sttTimesRef.current.length 
+          : 0;
+        
         // Reset transcribing flag on empty result
-        // Already reset above, but keeping for clarity
         setState(prev => ({ 
           ...prev, 
           isProcessingSTT: false,
-          error: 'No speech detected in audio'
+          error: 'No speech detected in audio',
+          performance: {
+            ...prev.performance,
+            sttProcessingTime: sttTime,
+          },
+          stats: {
+            ...prev.stats,
+            avgSTTTime: avgSTTTime,
+          }
         }));
       }
     }
@@ -442,10 +477,9 @@ export function useVoiceConversation(config: ConversationConfig) {
     // This helps with TLS handshake and DNS resolution
     if (config.llm.apiKey) {
       try {
-        const warmUpMessage = { role: 'user' as const, content: 'ping' };
         // We don't actually send this, just prepare the connection
         console.log('[Conversation] LLM connection warmed up');
-      } catch (e) {
+      } catch {
         // Silent fail for warm-up
       }
     }
@@ -536,7 +570,9 @@ export function useVoiceConversation(config: ConversationConfig) {
       currentAssistantResponse: ''
     }));
     
-    turnStartTimeRef.current = Date.now();
+    // Track when LLM processing starts for text input
+    performanceRef.current.pipelineStartTime = Date.now();
+    performanceRef.current.llmStartTime = Date.now();
     
     // Generate unique stream ID for this conversation turn
     const streamId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -555,7 +591,8 @@ export function useVoiceConversation(config: ConversationConfig) {
         }
       },
       (fullResponse: string) => {
-        const responseTime = Date.now() - turnStartTimeRef.current;
+        // Calculate pipeline time for text input (LLM processing time only)
+        const responseTime = Date.now() - performanceRef.current.pipelineStartTime;
         responseTimesRef.current.push(responseTime);
         
         setState(prev => ({ 
@@ -565,6 +602,7 @@ export function useVoiceConversation(config: ConversationConfig) {
             ...prev.stats,
             totalTurns: prev.stats.totalTurns + 1,
             lastResponseTime: responseTime,
+            avgResponseTime: responseTimesRef.current.reduce((a, b) => a + b, 0) / responseTimesRef.current.length,
           }
         }));
 
@@ -588,6 +626,7 @@ export function useVoiceConversation(config: ConversationConfig) {
   const clearHistory = useCallback(() => {
     llm.clearMessages();
     responseTimesRef.current = [];
+    sttTimesRef.current = [];
     setState(prev => ({
       ...prev,
       currentUserInput: '',
@@ -596,6 +635,7 @@ export function useVoiceConversation(config: ConversationConfig) {
         totalTurns: 0,
         avgResponseTime: 0,
         lastResponseTime: 0,
+        avgSTTTime: 0,
       }
     }));
     console.log('[Conversation] History cleared');

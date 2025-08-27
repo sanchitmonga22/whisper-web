@@ -99,7 +99,7 @@ export function useLLMStreaming(config: LLMConfig = {}) {
       const client = getClient();
       
       // Prepare messages for Chat Completions API
-      const messages: any[] = [];
+      const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
       
       if (config.systemPrompt) {
         messages.push({
@@ -192,87 +192,6 @@ export function useLLMStreaming(config: LLMConfig = {}) {
       }));
     }
   }, [config, state.messages, state.isStreaming, getClient]);
-
-  // Legacy fallback using Chat Completions API
-  const sendMessageLegacy = useCallback(async (
-    userMessage: string,
-    onChunk?: (chunk: string, fullResponse: string) => void,
-    onComplete?: (fullResponse: string) => void
-  ) => {
-    const client = getClient();
-    
-    // Prepare messages for legacy API
-    const messages: any[] = [];
-    
-    if (config.systemPrompt) {
-      messages.push({
-        role: 'system',
-        content: config.systemPrompt
-      });
-    }
-
-    // Add conversation history
-    state.messages.forEach(msg => {
-      messages.push({
-        role: msg.role,
-        content: msg.content
-      });
-    });
-
-    console.log('[LLM] Using legacy Chat Completions API');
-
-    const stream = await client.chat.completions.create({
-      model: config.model || 'gpt-3.5-turbo',
-      messages,
-      stream: true,
-      max_tokens: config.maxTokens || 1000,
-      temperature: config.temperature || 0.7,
-    });
-
-    let fullResponse = '';
-    let tokenCount = 0;
-
-    for await (const chunk of stream) {
-      if (abortControllerRef.current?.signal.aborted) {
-        break;
-      }
-
-      const content = chunk.choices[0]?.delta?.content || '';
-      if (content) {
-        fullResponse += content;
-        tokenCount++;
-        
-        setState(prev => ({
-          ...prev,
-          currentResponse: fullResponse,
-          tokensGenerated: tokenCount,
-        }));
-
-        onChunk?.(content, fullResponse);
-      }
-    }
-
-    // Complete the response
-    const responseTime = Date.now() - responseStartTimeRef.current;
-    
-    setState(prev => ({
-      ...prev,
-      isStreaming: false,
-      isComplete: true,
-      messages: [
-        ...prev.messages,
-        {
-          role: 'assistant',
-          content: fullResponse,
-          timestamp: Date.now(),
-        }
-      ],
-      responseTime,
-    }));
-
-    onComplete?.(fullResponse);
-  }, [config, state.messages, getClient]);
-
   // Stop streaming
   const stopStreaming = useCallback(() => {
     if (abortControllerRef.current) {

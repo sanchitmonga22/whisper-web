@@ -10,6 +10,20 @@ export default function ElevenLabsAssistant() {
   
   const textInputRef = useRef<HTMLInputElement>(null);
 
+  // Debug logging on mount
+  useEffect(() => {
+    console.log('[ElevenLabsAssistant] Component mounted');
+    console.log('[ElevenLabsAssistant] Initial state:', {
+      apiKey: apiKey ? 'SET' : 'NOT SET',
+      openaiApiKey: openaiApiKey ? 'SET' : 'NOT SET',
+      selectedVoice,
+      autoSpeak
+    });
+    return () => {
+      console.log('[ElevenLabsAssistant] Component unmounting');
+    };
+  }, []);
+
   // Initialize ElevenLabs conversation
   const conversation = useElevenLabsConversation({
     apiKey,
@@ -17,20 +31,50 @@ export default function ElevenLabsAssistant() {
     voiceId: selectedVoice || undefined,
     autoSpeak,
     onError: (error) => {
-      console.error('ElevenLabs conversation error:', error);
+      console.error('[ElevenLabsAssistant] Conversation error:', error);
+      console.error('[ElevenLabsAssistant] Error details:', {
+        timestamp: new Date().toISOString(),
+        apiKeyPresent: !!apiKey,
+        openaiKeyPresent: !!openaiApiKey,
+        conversationState: {
+          isActive: conversation?.isActive,
+          status: conversation?.status
+        }
+      });
     },
     onStatusChange: (status) => {
-      console.log('Status changed:', status);
+      console.log('[ElevenLabsAssistant] Status changed:', status, 'at', new Date().toISOString());
+    },
+    onMessage: (message) => {
+      console.log('[ElevenLabsAssistant] New message:', message);
     },
   });
 
   // Save settings to localStorage
   useEffect(() => {
+    console.log('[ElevenLabsAssistant] Saving settings to localStorage');
     localStorage.setItem('elevenlabs_api_key', apiKey);
     localStorage.setItem('openai_api_key', openaiApiKey);
     localStorage.setItem('elevenlabs_voice', selectedVoice);
     localStorage.setItem('elevenlabs_autospeak', autoSpeak.toString());
+    console.log('[ElevenLabsAssistant] Settings saved:', {
+      apiKeyLength: apiKey.length,
+      openaiKeyLength: openaiApiKey.length,
+      voice: selectedVoice,
+      autoSpeak
+    });
   }, [apiKey, openaiApiKey, selectedVoice, autoSpeak]);
+
+  // Log conversation state changes
+  useEffect(() => {
+    console.log('[ElevenLabsAssistant] Conversation state updated:', {
+      isActive: conversation.isActive,
+      status: conversation.status,
+      error: conversation.error,
+      voicesCount: conversation.voices.length,
+      messagesCount: conversation.messages.length
+    });
+  }, [conversation.isActive, conversation.status, conversation.error, conversation.voices.length, conversation.messages.length]);
 
   // Handle text input
   const handleTextSubmit = (e: React.FormEvent) => {
@@ -159,7 +203,18 @@ export default function ElevenLabsAssistant() {
       {/* Main Control Panel */}
       <div className="flex items-center gap-4">
         <button
-          onClick={conversation.isActive ? conversation.stopConversation : conversation.startConversation}
+          onClick={() => {
+            console.log('[ElevenLabsAssistant] Button clicked:', {
+              currentState: conversation.isActive ? 'active' : 'inactive',
+              action: conversation.isActive ? 'stopping' : 'starting',
+              apiKeyPresent: !!apiKey
+            });
+            if (conversation.isActive) {
+              conversation.stopConversation();
+            } else {
+              conversation.startConversation();
+            }
+          }}
           disabled={!apiKey}
           className={`
             px-8 py-4 rounded-full font-bold text-white text-lg transition-all duration-200
@@ -178,9 +233,18 @@ export default function ElevenLabsAssistant() {
 
         {conversation.isActive && (
           <button
-            onMouseDown={conversation.startListening}
-            onMouseUp={conversation.stopListening}
-            onMouseLeave={conversation.stopListening}
+            onMouseDown={() => {
+              console.log('[ElevenLabsAssistant] Push-to-talk pressed');
+              conversation.startListening();
+            }}
+            onMouseUp={() => {
+              console.log('[ElevenLabsAssistant] Push-to-talk released');
+              conversation.stopListening();
+            }}
+            onMouseLeave={() => {
+              console.log('[ElevenLabsAssistant] Push-to-talk mouse left button');
+              conversation.stopListening();
+            }}
             disabled={conversation.isProcessingSTT || conversation.isProcessingLLM || conversation.isSpeaking}
             className={`
               px-6 py-4 rounded-full font-bold text-white transition-all duration-200
