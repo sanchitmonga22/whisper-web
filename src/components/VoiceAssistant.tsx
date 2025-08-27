@@ -415,7 +415,7 @@ export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
               <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
                 {conversation.performance.totalPipelineTime || 0}ms
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-500">End-to-end latency</div>
+              <div className="text-xs text-gray-500 dark:text-gray-500">Processing latency</div>
             </div>
             <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 md:col-span-2">
               <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Pipeline Efficiency</div>

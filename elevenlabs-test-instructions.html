@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ElevenLabs Assistant Testing Instructions</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 { color: #7c3aed; }
+        .step {
+            background: #f3f4f6;
+            padding: 15programming;
+            margin: 15px 0;
+            border-left: 4px solid #7c3aed;
+            border-radius: 4px;
+        }
+        .important {
+            background: #fef3c7;
+            padding: 10px;
+            border-left: 4px solid #f59e0b;
+            margin: 20px 0;
+        }
+        code {
+            background: #e5e7eb;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        button {
+            background: #7c3aed;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover { background: #6b21a8; }
+    </style>
+</head>
+<body>
+    <h1>🎙️ ElevenLabs Assistant Testing Guide</h1>
+    
+    <div class="important">
+        <strong>⚠️ Prerequisites:</strong>
+        <ul>
+            <li>You need an ElevenLabs API key from <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank">https://elevenlabs.io/app/settings/api-keys</a></li>
+            <li>Make sure your browser allows microphone access</li>
+            <li>The development server should be running on port 5174</li>
+        </ul>
+    </div>
+
+    <h2>Testing Steps:</h2>
+
+    <div class="step">
+        <h3>Step 1: Open the ElevenLabs Assistant</h3>
+        <p>The app now defaults to ElevenLabs mode. Just go to:</p>
+        <button onclick="window.open('http://localhost:5174', '_blank')">Open App →</button>
+    </div>
+
+    <div class="step">
+        <h3>Step 2: Configure Settings</h3>
+        <ol>
+            <li>Click the <strong>⚙️ Settings</strong> button</li>
+            <li>Enter your <strong>ElevenLabs API Key</strong> (starts with sk-...)</li>
+            <li>Optionally select a voice from the dropdown (it will load available voices)</li>
+            <li>Keep "Auto-speak responses" checked if you want to hear responses</li>
+        </ol>
+    </div>
+
+    <div class="step">
+        <h3>Step 3: Start the Assistant</h3>
+        <ol>
+            <li>Click <strong>"🎤 Start ElevenLabs Assistant"</strong></li>
+            <li>Allow microphone access when prompted</li>
+            <li>The button should change to <strong>"🔴 Stop Assistant"</strong></li>
+            <li>You should now see a <strong>"🎤 Push to Talk"</strong> button</li>
+        </ol>
+    </div>
+
+    <div class="step">
+        <h3>Step 4: Test Speech Recognition</h3>
+        <ol>
+            <li><strong>Hold down</strong> the "🎤 Push to Talk" button</li>
+            <li>Speak clearly into your microphone</li>
+            <li><strong>Release</strong> the button when done speaking</li>
+            <li>Watch for the status indicators:
+                <ul>
+                    <li>🟢 Listening - Recording your voice</li>
+                    <li>🟡 STT - Converting speech to text</li>
+                    <li>🔵 LLM - Processing your message</li>
+                    <li>🟣 TTS - Speaking the response</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <div class="step">
+        <h3>Step 5: Alternative Text Input</h3>
+        <p>If voice isn't working, you can also type messages in the text input field at the bottom and click "Send".</p>
+    </div>
+
+    <h2>🐛 Troubleshooting:</h2>
+    
+    <div class="step">
+        <h3>Common Issues:</h3>
+        <ul>
+            <li><strong>No response after speaking:</strong>
+                <ul>
+                    <li>Check browser console (F12) for errors</li>
+                    <li>Verify your API key is correct</li>
+                    <li>Make sure you're holding the button while speaking</li>
+                    <li>Check that audio is being recorded (blob size should be > 0)</li>
+                </ul>
+            </li>
+            <li><strong>API Errors:</strong>
+                <ul>
+                    <li>400 Bad Request - Usually means the API key is invalid</li>
+                    <li>401 Unauthorized - API key is missing or incorrect</li>
+                    <li>429 Too Many Requests - Rate limit exceeded</li>
+                </ul>
+            </li>
+            <li><strong>Microphone Issues:</strong>
+                <ul>
+                    <li>Check browser permissions (usually in address bar)</li>
+                    <li>Try refreshing the page</li>
+                    <li>Test microphone in browser settings</li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <div class="important">
+        <strong>📊 What's Working Now:</strong>
+        <ul>
+            <li>✅ Fixed API parameter issues (file upload, model_id)</li>
+            <li>✅ Added Push-to-Talk functionality</li>
+            <li>✅ Improved audio format handling</li>
+            <li>✅ Better error handling and status indicators</li>
+            <li>⚠️ LLM integration is placeholder (returns echo response)</li>
+        </ul>
+    </div>
+
+    <h2>Console Commands for Debugging:</h2>
+    <div class="step">
+        <p>Open browser console (F12) and run these to check status:</p>
+        <code>localStorage.getItem('elevenlabs_api_key')</code> - Check if API key is saved<br>
+        <code>localStorage.getItem('elevenlabs_voice')</code> - Check selected voice<br>
+        <code>localStorage.getItem('elevenlabs_autospeak')</code> - Check auto-speak setting
+    </div>
+
+    <script>
+        console.log('ElevenLabs Assistant Test Page Loaded');
+        console.log('API Key stored:', !!localStorage.getItem('elevenlabs_api_key'));
+    </script>
+</body>
+</html>

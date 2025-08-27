@@ -4,6 +4,7 @@ import { useElevenLabsConversation } from '../hooks/useElevenLabsConversation';
 export default function ElevenLabsAssistant() {
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState(localStorage.getItem('elevenlabs_api_key') || '');
+  const [openaiApiKey, setOpenaiApiKey] = useState(localStorage.getItem('openai_api_key') || '');
   const [selectedVoice, setSelectedVoice] = useState(localStorage.getItem('elevenlabs_voice') || '');
   const [autoSpeak, setAutoSpeak] = useState(localStorage.getItem('elevenlabs_autospeak') !== 'false');
   
@@ -12,6 +13,7 @@ export default function ElevenLabsAssistant() {
   // Initialize ElevenLabs conversation
   const conversation = useElevenLabsConversation({
     apiKey,
+    openaiApiKey,
     voiceId: selectedVoice || undefined,
     autoSpeak,
     onError: (error) => {
@@ -25,9 +27,10 @@ export default function ElevenLabsAssistant() {
   // Save settings to localStorage
   useEffect(() => {
     localStorage.setItem('elevenlabs_api_key', apiKey);
+    localStorage.setItem('openai_api_key', openaiApiKey);
     localStorage.setItem('elevenlabs_voice', selectedVoice);
     localStorage.setItem('elevenlabs_autospeak', autoSpeak.toString());
-  }, [apiKey, selectedVoice, autoSpeak]);
+  }, [apiKey, openaiApiKey, selectedVoice, autoSpeak]);
 
   // Handle text input
   const handleTextSubmit = (e: React.FormEvent) => {
@@ -55,10 +58,10 @@ export default function ElevenLabsAssistant() {
       </div>
 
       {/* API Key Warning */}
-      {!apiKey && (
+      {(!apiKey || !openaiApiKey) && (
         <div className="w-full p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
           <p className="text-yellow-800 dark:text-yellow-200 text-center">
-            ⚠️ Please set your ElevenLabs API key in settings to get started
+            ⚠️ Please set your {!apiKey && 'ElevenLabs'} {!apiKey && !openaiApiKey && 'and'} {!openaiApiKey && 'OpenAI'} API key{(!apiKey && !openaiApiKey) ? 's' : ''} in settings to get started
           </p>
         </div>
       )}
@@ -66,12 +69,12 @@ export default function ElevenLabsAssistant() {
       {/* Settings Panel */}
       {showSettings && (
         <div className="w-full p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
-          <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">ElevenLabs Configuration</h3>
+          <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Configuration</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                ElevenLabs API Key
+                ElevenLabs API Key (Speech)
               </label>
               <input
                 type="password"
@@ -89,6 +92,30 @@ export default function ElevenLabsAssistant() {
                   className="text-purple-600 hover:underline"
                 >
                   ElevenLabs Dashboard
+                </a>
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                OpenAI API Key (AI Responses)
+              </label>
+              <input
+                type="password"
+                value={openaiApiKey}
+                onChange={(e) => setOpenaiApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Get your API key from{' '}
+                <a 
+                  href="https://platform.openai.com/api-keys" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-green-600 hover:underline"
+                >
+                  OpenAI Dashboard
                 </a>
               </p>
             </div>
@@ -148,6 +175,27 @@ export default function ElevenLabsAssistant() {
             ? "🔴 Stop Assistant" 
             : "🎤 Start ElevenLabs Assistant"}
         </button>
+
+        {conversation.isActive && (
+          <button
+            onMouseDown={conversation.startListening}
+            onMouseUp={conversation.stopListening}
+            onMouseLeave={conversation.stopListening}
+            disabled={conversation.isProcessingSTT || conversation.isProcessingLLM || conversation.isSpeaking}
+            className={`
+              px-6 py-4 rounded-full font-bold text-white transition-all duration-200
+              ${conversation.isListening 
+                ? "bg-green-600 scale-110 animate-pulse" 
+                : "bg-green-500 hover:bg-green-600"}
+              ${conversation.isProcessingSTT || conversation.isProcessingLLM || conversation.isSpeaking
+                ? "opacity-50 cursor-not-allowed" 
+                : "hover:scale-105 active:scale-110"}
+            `}
+            title="Hold to speak"
+          >
+            {conversation.isListening ? "🎙️ Listening..." : "🎤 Push to Talk"}
+          </button>
+        )}
 
         <button
           onClick={() => setShowSettings(!showSettings)}

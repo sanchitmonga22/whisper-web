@@ -94,29 +94,29 @@ export function useVoiceConversation(config: ConversationConfig) {
 
   // Initialize transcriber with optimized settings
   const transcriber = useTranscriber();
+  const isTranscribingRef = useRef<boolean>(false);
   
-  // Force use of fastest model with GPU acceleration
+  // Force use of fastest stable model configuration WITHOUT GPU (too unstable)
   useEffect(() => {
-    // Try distil-whisper first (6x faster), fallback to tiny
-    const optimalModel = 'onnx-community/distil-small.en';  // Distil model is 6x faster!
-    const fallbackModel = 'onnx-community/whisper-tiny';
+    // Use whisper-tiny - most stable and still fast
+    const optimalModel = 'onnx-community/whisper-tiny';
     
-    if (transcriber.model !== optimalModel && transcriber.model !== fallbackModel) {
-      console.log('[Conversation] Switching to fastest STT model:', optimalModel);
+    if (transcriber.model !== optimalModel) {
+      console.log('[Conversation] Switching to whisper-tiny for stable fast processing');
       transcriber.setModel(optimalModel);
     }
     
-    // Use fp16 for GPU acceleration (faster than q8 on GPU)
-    if (transcriber.gpu && transcriber.dtype !== 'fp16') {
-      transcriber.setDtype('fp16');
-    } else if (!transcriber.gpu && transcriber.dtype !== 'q8') {
-      transcriber.setDtype('q8');
+    // DISABLE GPU - it's causing session conflicts and instability
+    if (transcriber.gpu) {
+      console.log('[Conversation] DISABLING GPU - causing session conflicts');
+      transcriber.setGPU(false);
     }
     
-    // CRITICAL: Enable GPU acceleration for massive speed boost!
-    if (!transcriber.gpu) {
-      console.log('[Conversation] ENABLING GPU/WebGPU ACCELERATION!');
-      transcriber.setGPU(true);
+    // Use q8 quantization for CPU - best balance of speed and stability
+    const optimalDtype = 'q8';
+    if (transcriber.dtype !== optimalDtype) {
+      console.log(`[Conversation] Using ${optimalDtype} quantization for CPU processing`);
+      transcriber.setDtype(optimalDtype);
     }
   }, [transcriber]);
 
@@ -157,6 +157,20 @@ export function useVoiceConversation(config: ConversationConfig) {
         audioLength: audio.length,
         audioSeconds: audio.length / 16000  // VAD uses 16kHz
       });
+      
+      // CRITICAL: Check if already transcribing to prevent overlapping requests
+      if (isTranscribingRef.current) {
+        console.warn('[Conversation] Already transcribing, skipping this request to prevent conflicts');
+        setState(prev => ({ 
+          ...prev, 
+          isListening: false,
+          isProcessingSTT: false,
+        }));
+        return;
+      }
+      
+      // Mark as transcribing
+      isTranscribingRef.current = true;
       
       setState(prev => ({ 
         ...prev, 
@@ -211,6 +225,8 @@ export function useVoiceConversation(config: ConversationConfig) {
 
       } catch (error) {
         console.error('[Conversation] STT processing error:', error);
+        // Reset transcribing flag on error
+        isTranscribingRef.current = false;
         setState(prev => ({
           ...prev,
           isProcessingSTT: false,
@@ -224,6 +240,9 @@ export function useVoiceConversation(config: ConversationConfig) {
   useEffect(() => {
     if (transcriber.output && !transcriber.isBusy && state.isProcessingSTT) {
       const transcribedText = transcriber.output.text?.trim();
+      
+      // Reset transcribing flag when done
+      isTranscribingRef.current = false;
       
       if (transcribedText) {
         // Track STT completion
@@ -291,6 +310,8 @@ export function useVoiceConversation(config: ConversationConfig) {
             const now = Date.now();
             performanceRef.current.llmEndTime = now;
             const llmTime = now - performanceRef.current.llmStartTime;
+            // Total pipeline time should be from speech detection to LLM completion (when TTS can start)
+            // This excludes TTS speaking time as that's not part of processing latency
             const totalPipelineTime = now - performanceRef.current.pipelineStartTime;
             
             const responseTime = Date.now() - turnStartTimeRef.current;
@@ -301,7 +322,7 @@ export function useVoiceConversation(config: ConversationConfig) {
             console.log('[Conversation] LLM response completed:', {
               response: fullResponse.substring(0, 100) + '...',
               llmCompletionTime: `${llmTime}ms`,
-              totalPipelineTime: `${totalPipelineTime}ms`,
+              totalPipelineTime: `${totalPipelineTime}ms (processing only, excludes TTS speaking)`,
               avgTime: `${avgTime.toFixed(0)}ms`
             });
             
@@ -329,6 +350,8 @@ export function useVoiceConversation(config: ConversationConfig) {
         );
       } else {
         console.warn('[Conversation] Empty transcription received');
+        // Reset transcribing flag on empty result
+        // Already reset above, but keeping for clarity
         setState(prev => ({ 
           ...prev, 
           isProcessingSTT: false,

@@ -1,11 +1,14 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { ElevenLabsService, ConversationMessage, ElevenLabsConfig } from '../services/elevenlabs';
+import OpenAI from 'openai';
 
 interface UseElevenLabsConversationConfig extends ElevenLabsConfig {
   onMessage?: (message: ConversationMessage) => void;
   onError?: (error: string) => void;
   onStatusChange?: (status: ConversationStatus) => void;
   autoSpeak?: boolean;
+  openaiApiKey?: string;
+  openaiModel?: string;
 }
 
 type ConversationStatus = 'idle' | 'listening' | 'processing-stt' | 'processing-llm' | 'speaking' | 'error';
@@ -130,10 +133,46 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
   }, [service, config.autoSpeak, config.voiceId, updateStatus, handleError]);
 
   const processWithLLM = useCallback(async (userMessage: string): Promise<string> => {
-    // This is a placeholder - you'll need to integrate with your preferred LLM
-    // For now, we'll return a simple echo response
-    return `I heard you say: "${userMessage}". How can I help you with that?`;
-  }, []);
+    // Check if OpenAI API key is available
+    const openaiKey = config.openaiApiKey || localStorage.getItem('openai_api_key');
+    
+    if (!openaiKey) {
+      // Fallback to simple response if no OpenAI key
+      return `I heard you say: "${userMessage}". Please set your OpenAI API key in settings to enable AI responses.`;
+    }
+
+    try {
+      const openai = new OpenAI({
+        apiKey: openaiKey,
+        dangerouslyAllowBrowser: true, // Required for browser usage
+      });
+
+      const completion = await openai.chat.completions.create({
+        model: config.openaiModel || 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant. Keep your responses concise and friendly.',
+          },
+          ...messages.map(msg => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content,
+          })),
+          {
+            role: 'user',
+            content: userMessage,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 200,
+      });
+
+      return completion.choices[0]?.message?.content || 'Sorry, I could not process that.';
+    } catch (error) {
+      console.error('OpenAI API Error:', error);
+      return `I heard: "${userMessage}". (AI processing error - check API key and try again)`;
+    }
+  }, [config.openaiApiKey, config.openaiModel, messages]);
 
   const processUserInput = useCallback(async (inputText: string) => {
     if (!service) return;
@@ -174,38 +213,68 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
 
   const startListening = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          channelCount: 1,
+          sampleRate: 16000,
+          echoCancellation: true,
+          noiseSuppression: true,
+        } 
+      });
       streamRef.current = stream;
 
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
+      // Use webm format which is widely supported
+      const options = {
+        mimeType: 'audio/webm;codecs=opus'
+      };
+      
+      // Fallback to default if webm is not supported
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        console.log('WebM not supported, using default format');
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+      } else {
+        const mediaRecorder = new MediaRecorder(stream, options);
+        mediaRecorderRef.current = mediaRecorder;
+      }
+      
       audioChunksRef.current = [];
 
-      mediaRecorder.ondataavailable = (event) => {
+      mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
 
-      mediaRecorder.onstop = async () => {
-        if (!service) return;
+      mediaRecorderRef.current.onstop = async () => {
+        if (!service || audioChunksRef.current.length === 0) return;
 
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        // Create blob with proper MIME type
+        const audioBlob = new Blob(audioChunksRef.current, { 
+          type: mediaRecorderRef.current?.mimeType || 'audio/webm' 
+        });
         
-        try {
-          updateStatus('processing-stt');
-          const result = await service.speechToText(audioBlob);
-          
-          if (result.text.trim()) {
-            setCurrentInput(result.text);
-            await processUserInput(result.text);
+        // Only process if we have actual audio data
+        if (audioBlob.size > 0) {
+          try {
+            updateStatus('processing-stt');
+            const result = await service.speechToText(audioBlob);
+            
+            if (result.text.trim()) {
+              setCurrentInput(result.text);
+              await processUserInput(result.text);
+            } else {
+              updateStatus('idle');
+            }
+          } catch (err) {
+            handleError(`STT Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
           }
-        } catch (err) {
-          handleError(`STT Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        } else {
+          updateStatus('idle');
         }
       };
 
-      mediaRecorder.start();
+      mediaRecorderRef.current.start();
       updateStatus('listening');
     } catch (err) {
       handleError(`Microphone Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -227,11 +296,11 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
     try {
       setIsActive(true);
       setError(null);
-      await startListening();
+      updateStatus('idle'); // Start in idle state, not listening yet
     } catch (err) {
       handleError(`Failed to start conversation: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
-  }, [service, config.apiKey, handleError, startListening]);
+  }, [service, config.apiKey, handleError, updateStatus]);
 
   const stopConversation = useCallback(() => {
     setIsActive(false);

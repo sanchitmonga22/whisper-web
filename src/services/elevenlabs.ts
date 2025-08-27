@@ -81,12 +81,31 @@ export class ElevenLabsService {
 
   async speechToText(audioBlob: Blob): Promise<SpeechToTextResult> {
     try {
-      // Convert blob to proper audio format if needed
-      const audioFile = new File([audioBlob], 'recording.mp3', { type: 'audio/mpeg' });
+      // Determine file extension based on MIME type
+      let filename = 'recording';
+      let mimeType = audioBlob.type || 'audio/webm';
+      
+      if (mimeType.includes('webm')) {
+        filename = 'recording.webm';
+      } else if (mimeType.includes('wav')) {
+        filename = 'recording.wav';
+      } else if (mimeType.includes('mp3')) {
+        filename = 'recording.mp3';
+      } else if (mimeType.includes('ogg')) {
+        filename = 'recording.ogg';
+      } else {
+        // Default to webm
+        filename = 'recording.webm';
+      }
+      
+      console.log(`Sending audio file: ${filename}, type: ${mimeType}, size: ${audioBlob.size} bytes`);
+      
+      const audioFile = new File([audioBlob], filename, { type: mimeType });
       
       const formData = new FormData();
-      formData.append('audio', audioFile);
-      formData.append('model_id', 'whisper-1'); // Using Whisper model
+      formData.append('file', audioFile);
+      formData.append('model_id', 'scribe_v1'); // Required model ID
+      formData.append('tag_audio_events', 'false'); // Disable audio event tagging for cleaner output
       
       const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
         method: 'POST',

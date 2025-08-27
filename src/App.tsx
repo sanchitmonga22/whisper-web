@@ -9,7 +9,7 @@ function App() {
 
     const { i18n } = useTranslation();
     const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
-    const [mode, setMode] = useState<'assistant' | 'elevenlabs'>('assistant');
+    const [mode, setMode] = useState<'assistant' | 'elevenlabs'>('elevenlabs');
 
     const handleChangeLanguage = (newLanguage: string) => {
         setCurrentLanguage(newLanguage);

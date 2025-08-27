@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test ElevenLabs</title>
+</head>
+<body>
+    <h1>Test ElevenLabs Integration</h1>
+    <p>Click the ElevenLabs AI card on the main page to switch to that mode.</p>
+    <p>Then:</p>
+    <ol>
+        <li>Click the settings button (⚙️)</li>
+        <li>Enter your ElevenLabs API key</li>
+        <li>Click "Start ElevenLabs Assistant"</li>
+        <li>Use the "Push to Talk" button (hold down to speak)</li>
+    </ol>
+    <script>
+        // Navigate to the main page and programmatically click on ElevenLabs
+        setTimeout(() => {
+            window.location.href = 'http://localhost:5174';
+        }, 1000);
+    </script>
+</body>
+</html>
