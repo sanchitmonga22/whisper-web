@@ -92,8 +92,20 @@ export function useVoiceConversation(config: ConversationConfig) {
     pipelineStartTime: 0,
   });
 
-  // Initialize transcriber
+  // Initialize transcriber with optimized settings
   const transcriber = useTranscriber();
+  
+  // Force use of tiny model for faster processing
+  useEffect(() => {
+    if (transcriber.model !== 'onnx-community/whisper-tiny') {
+      console.log('[Conversation] Switching to whisper-tiny for faster processing');
+      transcriber.setModel('onnx-community/whisper-tiny');
+    }
+    // Use quantized model for speed
+    if (transcriber.dtype !== 'q8') {
+      transcriber.setDtype('q8');
+    }
+  }, [transcriber]);
 
   // Initialize LLM streaming
   const llm = useLLMStreaming(config.llm);
@@ -128,7 +140,9 @@ export function useVoiceConversation(config: ConversationConfig) {
       const vadTime = now - performanceRef.current.speechStartTime;
       
       console.log('[Conversation] User finished speaking, processing...', {
-        vadDetectionTime: `${vadTime}ms`
+        speechDuration: `${vadTime}ms`,
+        audioLength: audio.length,
+        audioSeconds: audio.length / 16000  // VAD uses 16kHz
       });
       
       setState(prev => ({ 
@@ -137,11 +151,11 @@ export function useVoiceConversation(config: ConversationConfig) {
         isProcessingSTT: true,
         performance: {
           ...prev.performance,
-          vadDetectionTime: vadTime,
+          vadDetectionTime: vadTime,  // This is actually speech duration, not processing time
         }
       }));
       
-      // Track STT start time
+      // Track STT start time AFTER VAD processing
       performanceRef.current.sttStartTime = Date.now();
 
       try {

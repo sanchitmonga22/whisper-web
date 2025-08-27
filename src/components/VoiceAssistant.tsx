@@ -52,10 +52,19 @@ export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
   useEffect(() => {
     console.log('[VoiceAssistant] Component mounted, preloading models...');
     
-    // Preload Whisper model if not already loaded
-    if (!conversation.transcriber.isModelLoading && !conversation.transcriber.progressItems.length) {
-      // The transcriber will load automatically when first used
-      console.log('[VoiceAssistant] Whisper model will preload on first use');
+    // Force load Whisper model early for faster first use
+    if (!conversation.transcriber.isModelLoading) {
+      // Trigger model loading by sending empty audio
+      console.log('[VoiceAssistant] Preloading Whisper tiny model...');
+      // Create a tiny silent audio buffer to trigger model loading
+      const silentAudioContext = new AudioContext({ sampleRate: 16000 });
+      const silentBuffer = silentAudioContext.createBuffer(1, 16000, 16000); // 1 second of silence
+      
+      // This will trigger the model to load but won't produce any output
+      setTimeout(() => {
+        conversation.transcriberActions.start(silentBuffer);
+        console.log('[VoiceAssistant] Whisper model preload triggered');
+      }, 100);
     }
     
     // NOTE: We do NOT initialize VAD here to prevent microphone auto-starting
@@ -367,11 +376,11 @@ export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3">
-              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">VAD Detection</div>
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Speech Duration</div>
               <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                {conversation.performance.vadDetectionTime || 0}ms
+                {conversation.performance.vadDetectionTime ? `${(conversation.performance.vadDetectionTime / 1000).toFixed(1)}s` : '0s'}
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-500">Speech capture</div>
+              <div className="text-xs text-gray-500 dark:text-gray-500">How long you spoke</div>
             </div>
             <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3">
               <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">STT Processing</div>
