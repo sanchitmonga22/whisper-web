@@ -35,10 +35,10 @@ export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
       ...config.tts,
     },
     vad: {
-      positiveSpeechThreshold: 0.85,  // Slightly lower for faster detection
-      negativeSpeechThreshold: 0.7,   // Slightly lower for faster end detection
-      minSpeechDuration: 250,         // Reduced from 300ms for quicker response
-      preSpeechPadding: 300,          // Reduced from 400ms for less delay
+      positiveSpeechThreshold: 0.8,   // Lower for even faster detection
+      negativeSpeechThreshold: 0.65,  // Lower for quicker end detection
+      minSpeechDuration: 200,         // Minimum viable for speech
+      preSpeechPadding: 200,          // Minimal padding for speed
       ...config.vad,
     },
     autoSpeak: true,

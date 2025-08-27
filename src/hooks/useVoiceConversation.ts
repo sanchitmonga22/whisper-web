@@ -75,7 +75,7 @@ export function useVoiceConversation(config: ConversationConfig) {
   const turnStartTimeRef = useRef<number>(0);
   const responseTimesRef = useRef<number[]>([]);
   const lastTTSEndTimeRef = useRef<number>(0);
-  const TTS_COOLDOWN_MS = 500; // Reduced to 500ms for faster responses
+  const TTS_COOLDOWN_MS = 300; // Ultra-fast cooldown for quick back-and-forth
   
   // Performance tracking refs
   const performanceRef = useRef({
@@ -95,15 +95,28 @@ export function useVoiceConversation(config: ConversationConfig) {
   // Initialize transcriber with optimized settings
   const transcriber = useTranscriber();
   
-  // Force use of tiny model for faster processing
+  // Force use of fastest model with GPU acceleration
   useEffect(() => {
-    if (transcriber.model !== 'onnx-community/whisper-tiny') {
-      console.log('[Conversation] Switching to whisper-tiny for faster processing');
-      transcriber.setModel('onnx-community/whisper-tiny');
+    // Try distil-whisper first (6x faster), fallback to tiny
+    const optimalModel = 'onnx-community/distil-small.en';  // Distil model is 6x faster!
+    const fallbackModel = 'onnx-community/whisper-tiny';
+    
+    if (transcriber.model !== optimalModel && transcriber.model !== fallbackModel) {
+      console.log('[Conversation] Switching to fastest STT model:', optimalModel);
+      transcriber.setModel(optimalModel);
     }
-    // Use quantized model for speed
-    if (transcriber.dtype !== 'q8') {
+    
+    // Use fp16 for GPU acceleration (faster than q8 on GPU)
+    if (transcriber.gpu && transcriber.dtype !== 'fp16') {
+      transcriber.setDtype('fp16');
+    } else if (!transcriber.gpu && transcriber.dtype !== 'q8') {
       transcriber.setDtype('q8');
+    }
+    
+    // CRITICAL: Enable GPU acceleration for massive speed boost!
+    if (!transcriber.gpu) {
+      console.log('[Conversation] ENABLING GPU/WebGPU ACCELERATION!');
+      transcriber.setGPU(true);
     }
   }, [transcriber]);
 

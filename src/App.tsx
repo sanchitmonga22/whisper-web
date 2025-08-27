@@ -110,7 +110,15 @@ function App() {
                         The transcription is performed locally on your device. Your data remains private.
                     </p>
                     <div className='mt-3 text-sm text-slate-500 dark:text-slate-500'>
-                        Created by <span className='font-semibold text-slate-700 dark:text-slate-300'>Runanywhere Team</span>
+                        Created by{' '}
+                        <a 
+                            href="https://github.com/RunanywhereAI/runanywhere-sdks" 
+                            className='font-semibold text-blue-600 dark:text-blue-400 hover:underline'
+                            target='_blank'
+                            rel='noopener noreferrer'
+                        >
+                            Runanywhere Team
+                        </a>
                         <span className='mx-2'>•</span>
                         Based on work by{' '}
                         <a 
