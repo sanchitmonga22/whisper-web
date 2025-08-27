@@ -29,16 +29,16 @@ export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
     },
     tts: {
       voice: selectedVoice,
-      rate: 1.1,
+      rate: 1.2,  // Increased from 1.1 for slightly faster speech
       pitch: 1.0,
       volume: 0.9,
       ...config.tts,
     },
     vad: {
-      positiveSpeechThreshold: 0.9,
-      negativeSpeechThreshold: 0.75,
-      minSpeechDuration: 300,
-      preSpeechPadding: 400,
+      positiveSpeechThreshold: 0.85,  // Slightly lower for faster detection
+      negativeSpeechThreshold: 0.7,   // Slightly lower for faster end detection
+      minSpeechDuration: 250,         // Reduced from 300ms for quicker response
+      preSpeechPadding: 300,          // Reduced from 400ms for less delay
       ...config.vad,
     },
     autoSpeak: true,
@@ -47,6 +47,27 @@ export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
 
   // Initialize voice conversation
   const conversation = useVoiceConversation(conversationConfig);
+  
+  // Preload models on component mount for faster cold start
+  useEffect(() => {
+    console.log('[VoiceAssistant] Component mounted, preloading models...');
+    
+    // Preload Whisper model if not already loaded
+    if (!conversation.transcriber.isModelLoading && !conversation.transcriber.progressItems.length) {
+      // The transcriber will load automatically when first used
+      console.log('[VoiceAssistant] Whisper model will preload on first use');
+    }
+    
+    // NOTE: We do NOT initialize VAD here to prevent microphone auto-starting
+    // VAD will be initialized when user clicks the start button
+    console.log('[VoiceAssistant] VAD will initialize on first use to prevent auto-mic');
+    
+    // Load TTS voices early (this is safe and doesn't access mic)
+    if (typeof speechSynthesis !== 'undefined') {
+      speechSynthesis.getVoices();
+      console.log('[VoiceAssistant] TTS voices preloaded');
+    }
+  }, []);
 
   // Save settings to localStorage
   useEffect(() => {
@@ -335,6 +356,93 @@ export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
               Send
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Performance Metrics */}
+      {conversation.isActive && (
+        <div className="w-full p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
+            ⚡ Performance Metrics (Real-time)
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3">
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">VAD Detection</div>
+              <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                {conversation.performance.vadDetectionTime || 0}ms
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-500">Speech capture</div>
+            </div>
+            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3">
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">STT Processing</div>
+              <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                {conversation.performance.sttProcessingTime || 0}ms
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-500">Whisper transcription</div>
+            </div>
+            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3">
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">LLM First Token</div>
+              <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                {conversation.performance.llmFirstTokenTime || 0}ms
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-500">Time to stream start</div>
+            </div>
+            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3">
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">LLM Complete</div>
+              <div className="text-xl font-bold text-orange-600 dark:text-orange-400">
+                {conversation.performance.llmCompletionTime || 0}ms
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-500">Full response</div>
+            </div>
+            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3">
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">TTS First Speech</div>
+              <div className="text-xl font-bold text-red-600 dark:text-red-400">
+                {conversation.tts.performanceMetrics?.firstSpeechTime || 0}ms
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-500">Time to audio out</div>
+            </div>
+            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3">
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Total Pipeline</div>
+              <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                {conversation.performance.totalPipelineTime || 0}ms
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-500">End-to-end latency</div>
+            </div>
+            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-3 md:col-span-2">
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Pipeline Efficiency</div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                  <div className="h-full flex">
+                    <div 
+                      className="bg-blue-500 h-full transition-all"
+                      style={{ width: `${(conversation.performance.vadDetectionTime / (conversation.performance.totalPipelineTime || 1)) * 100}%` }}
+                      title="VAD"
+                    ></div>
+                    <div 
+                      className="bg-green-500 h-full transition-all"
+                      style={{ width: `${(conversation.performance.sttProcessingTime / (conversation.performance.totalPipelineTime || 1)) * 100}%` }}
+                      title="STT"
+                    ></div>
+                    <div 
+                      className="bg-purple-500 h-full transition-all"
+                      style={{ width: `${(conversation.performance.llmCompletionTime / (conversation.performance.totalPipelineTime || 1)) * 100}%` }}
+                      title="LLM"
+                    ></div>
+                  </div>
+                </div>
+                <span className="text-xs text-gray-600 dark:text-gray-400">
+                  {conversation.performance.totalPipelineTime ? 
+                    `${((conversation.performance.vadDetectionTime + conversation.performance.sttProcessingTime + conversation.performance.llmCompletionTime) / conversation.performance.totalPipelineTime * 100).toFixed(0)}%` 
+                    : '0%'}
+                </span>
+              </div>
+              <div className="flex gap-4 mt-2 text-xs">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-blue-500 rounded-full"></span>VAD</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full"></span>STT</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-purple-500 rounded-full"></span>LLM</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

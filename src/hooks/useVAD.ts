@@ -246,8 +246,10 @@ export function useVAD(config: VADConfig = {}) {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      // IMPORTANT: Keep VAD instance alive between uses for performance
+      // Only destroy when component fully unmounts
       if (vadRef.current) {
-        console.log('[useVAD] Cleaning up VAD');
+        console.log('[useVAD] Component unmounting, destroying VAD');
         try {
           vadRef.current.destroy();
         } catch (err) {

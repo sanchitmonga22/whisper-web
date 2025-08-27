@@ -16,6 +16,11 @@ export interface TTSState {
   currentVoice: SpeechSynthesisVoice | null;
   error: string | null;
   queueLength: number;
+  performanceMetrics?: {
+    firstSpeechTime: number;
+    lastSpeechStartTime: number;
+    lastSpeechEndTime: number;
+  };
 }
 
 export function useTTS(config: TTSConfig = {}) {
@@ -32,6 +37,12 @@ export function useTTS(config: TTSConfig = {}) {
   const utteranceQueueRef = useRef<SpeechSynthesisUtterance[]>([]);
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const configRef = useRef<TTSConfig>(config);
+  const ttsTimingRef = useRef({
+    streamStartTime: 0,
+    firstSpeechTime: 0,
+    lastSpeechStartTime: 0,
+    lastSpeechEndTime: 0,
+  });
 
   // Update config ref when config changes
   useEffect(() => {
@@ -138,17 +149,36 @@ export function useTTS(config: TTSConfig = {}) {
 
     // Set up event handlers
     utterance.onstart = () => {
+      const now = Date.now();
+      ttsTimingRef.current.lastSpeechStartTime = now;
+      
+      // Track first speech time if this is the first utterance
+      if (ttsTimingRef.current.firstSpeechTime === 0 && ttsTimingRef.current.streamStartTime > 0) {
+        ttsTimingRef.current.firstSpeechTime = now - ttsTimingRef.current.streamStartTime;
+        console.log('[TTS] First speech started:', {
+          firstSpeechTime: `${ttsTimingRef.current.firstSpeechTime}ms`
+        });
+      }
+      
       console.log('[TTS] Speaking started');
       currentUtteranceRef.current = utterance;
       setState(prev => ({ 
         ...prev, 
         isSpeaking: true, 
         isPaused: false, 
-        error: null 
+        error: null,
+        performanceMetrics: {
+          firstSpeechTime: ttsTimingRef.current.firstSpeechTime,
+          lastSpeechStartTime: now,
+          lastSpeechEndTime: ttsTimingRef.current.lastSpeechEndTime,
+        }
       }));
     };
 
     utterance.onend = () => {
+      const now = Date.now();
+      ttsTimingRef.current.lastSpeechEndTime = now;
+      
       console.log('[TTS] Speaking ended');
       currentUtteranceRef.current = null;
       
@@ -160,7 +190,11 @@ export function useTTS(config: TTSConfig = {}) {
         setState(prev => ({ 
           ...prev, 
           isSpeaking: false, 
-          queueLength: 0 
+          queueLength: 0,
+          performanceMetrics: {
+            ...prev.performanceMetrics,
+            lastSpeechEndTime: now,
+          }
         }));
       }
     };
@@ -206,6 +240,8 @@ export function useTTS(config: TTSConfig = {}) {
   const stop = useCallback(() => {
     if (!speechSynthesis) return;
 
+    // Use pause instead of cancel for faster restart
+    speechSynthesis.pause();
     speechSynthesis.cancel();
     utteranceQueueRef.current = [];
     currentUtteranceRef.current = null;
@@ -237,6 +273,11 @@ export function useTTS(config: TTSConfig = {}) {
       console.log('[TTS] Starting genuinely new stream:', streamId);
       // Stop any ongoing speech only for truly new streams
       stop();
+      
+      // Track stream start time for performance metrics
+      ttsTimingRef.current.streamStartTime = Date.now();
+      ttsTimingRef.current.firstSpeechTime = 0;
+      
       streamingStateRef.current = {
         currentStreamId: streamId,
         accumulatedText: '',

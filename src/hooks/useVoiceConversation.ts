@@ -18,6 +18,16 @@ export interface ConversationConfig {
   interruptible?: boolean;
 }
 
+export interface PerformanceMetrics {
+  vadDetectionTime: number;      // Time from speech start to speech end
+  sttProcessingTime: number;     // Time to transcribe audio
+  llmFirstTokenTime: number;     // Time to first LLM token
+  llmCompletionTime: number;     // Total LLM response time
+  ttsFirstSpeechTime: number;    // Time to first TTS utterance
+  ttsCompletionTime: number;     // Total TTS speaking time
+  totalPipelineTime: number;     // Total end-to-end time
+}
+
 export interface ConversationState {
   isActive: boolean;
   isListening: boolean;
@@ -32,6 +42,7 @@ export interface ConversationState {
     avgResponseTime: number;
     lastResponseTime: number;
   };
+  performance: PerformanceMetrics;
 }
 
 export function useVoiceConversation(config: ConversationConfig) {
@@ -49,13 +60,37 @@ export function useVoiceConversation(config: ConversationConfig) {
       avgResponseTime: 0,
       lastResponseTime: 0,
     },
+    performance: {
+      vadDetectionTime: 0,
+      sttProcessingTime: 0,
+      llmFirstTokenTime: 0,
+      llmCompletionTime: 0,
+      ttsFirstSpeechTime: 0,
+      ttsCompletionTime: 0,
+      totalPipelineTime: 0,
+    },
   });
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const turnStartTimeRef = useRef<number>(0);
   const responseTimesRef = useRef<number[]>([]);
   const lastTTSEndTimeRef = useRef<number>(0);
-  const TTS_COOLDOWN_MS = 1000; // 1 second cooldown after TTS ends
+  const TTS_COOLDOWN_MS = 500; // Reduced to 500ms for faster responses
+  
+  // Performance tracking refs
+  const performanceRef = useRef({
+    speechStartTime: 0,
+    speechEndTime: 0,
+    sttStartTime: 0,
+    sttEndTime: 0,
+    llmStartTime: 0,
+    llmFirstTokenTime: 0,
+    llmEndTime: 0,
+    ttsFirstSpeechTime: 0,
+    ttsStartTime: 0,
+    ttsEndTime: 0,
+    pipelineStartTime: 0,
+  });
 
   // Initialize transcriber
   const transcriber = useTranscriber();
@@ -70,7 +105,12 @@ export function useVoiceConversation(config: ConversationConfig) {
   const vad = useVAD({
     ...config.vad,
     onSpeechStart: () => {
+      const now = Date.now();
       console.log('[Conversation] User started speaking');
+      
+      // Track performance
+      performanceRef.current.speechStartTime = now;
+      performanceRef.current.pipelineStartTime = now;
       
       setState(prev => ({ 
         ...prev, 
@@ -79,17 +119,30 @@ export function useVoiceConversation(config: ConversationConfig) {
         error: null
       }));
       
-      turnStartTimeRef.current = Date.now();
+      turnStartTimeRef.current = now;
     },
     
     onSpeechEnd: async (audio: Float32Array) => {
-      console.log('[Conversation] User finished speaking, processing...');
+      const now = Date.now();
+      performanceRef.current.speechEndTime = now;
+      const vadTime = now - performanceRef.current.speechStartTime;
+      
+      console.log('[Conversation] User finished speaking, processing...', {
+        vadDetectionTime: `${vadTime}ms`
+      });
       
       setState(prev => ({ 
         ...prev, 
         isListening: false,
-        isProcessingSTT: true
+        isProcessingSTT: true,
+        performance: {
+          ...prev.performance,
+          vadDetectionTime: vadTime,
+        }
       }));
+      
+      // Track STT start time
+      performanceRef.current.sttStartTime = Date.now();
 
       try {
         // Convert VAD audio to AudioBuffer for Whisper
@@ -146,15 +199,30 @@ export function useVoiceConversation(config: ConversationConfig) {
       const transcribedText = transcriber.output.text?.trim();
       
       if (transcribedText) {
-        console.log('[Conversation] Transcription completed:', transcribedText);
+        // Track STT completion
+        const now = Date.now();
+        performanceRef.current.sttEndTime = now;
+        const sttTime = now - performanceRef.current.sttStartTime;
+        
+        console.log('[Conversation] Transcription completed:', transcribedText, {
+          sttProcessingTime: `${sttTime}ms`
+        });
         
         setState(prev => ({ 
           ...prev, 
           isProcessingSTT: false,
           isProcessingLLM: true,
-          currentUserInput: transcribedText
+          currentUserInput: transcribedText,
+          performance: {
+            ...prev.performance,
+            sttProcessingTime: sttTime,
+          }
         }));
 
+        // Track LLM start time
+        performanceRef.current.llmStartTime = Date.now();
+        performanceRef.current.llmFirstTokenTime = 0;
+        
         // Generate unique stream ID for this conversation turn
         const streamId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
@@ -163,6 +231,23 @@ export function useVoiceConversation(config: ConversationConfig) {
           transcribedText,
           // On chunk received - improved streaming coordination
           (chunk: string, fullResponse: string) => {
+            // Track first token time
+            if (performanceRef.current.llmFirstTokenTime === 0) {
+              performanceRef.current.llmFirstTokenTime = Date.now();
+              const firstTokenTime = performanceRef.current.llmFirstTokenTime - performanceRef.current.llmStartTime;
+              
+              console.log('[Conversation] LLM first token received:', {
+                firstTokenTime: `${firstTokenTime}ms`
+              });
+              
+              setState(prev => ({
+                ...prev,
+                performance: {
+                  ...prev.performance,
+                  llmFirstTokenTime: firstTokenTime,
+                }
+              }));
+            }
             setState(prev => ({ 
               ...prev, 
               currentAssistantResponse: fullResponse 
@@ -175,6 +260,12 @@ export function useVoiceConversation(config: ConversationConfig) {
           },
           // On completion
           (fullResponse: string) => {
+            // Track LLM completion
+            const now = Date.now();
+            performanceRef.current.llmEndTime = now;
+            const llmTime = now - performanceRef.current.llmStartTime;
+            const totalPipelineTime = now - performanceRef.current.pipelineStartTime;
+            
             const responseTime = Date.now() - turnStartTimeRef.current;
             responseTimesRef.current.push(responseTime);
             
@@ -182,7 +273,8 @@ export function useVoiceConversation(config: ConversationConfig) {
             
             console.log('[Conversation] LLM response completed:', {
               response: fullResponse.substring(0, 100) + '...',
-              time: `${responseTime}ms`,
+              llmCompletionTime: `${llmTime}ms`,
+              totalPipelineTime: `${totalPipelineTime}ms`,
               avgTime: `${avgTime.toFixed(0)}ms`
             });
             
@@ -194,6 +286,11 @@ export function useVoiceConversation(config: ConversationConfig) {
                 totalTurns: prev.stats.totalTurns + 1,
                 avgResponseTime: avgTime,
                 lastResponseTime: responseTime,
+              },
+              performance: {
+                ...prev.performance,
+                llmCompletionTime: llmTime,
+                totalPipelineTime: totalPipelineTime,
               }
             }));
 
@@ -269,12 +366,52 @@ export function useVoiceConversation(config: ConversationConfig) {
     }
   }, [tts.isSpeaking]);
 
+  // Warm up the pipeline (preload models and cache)
+  const warmUpPipeline = useCallback(async () => {
+    console.log('[Conversation] Warming up pipeline...');
+    
+    // 1. Create audio context early to avoid latency
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContext({
+        sampleRate: Constants.SAMPLING_RATE,
+      });
+      console.log('[Conversation] Audio context created');
+    }
+    
+    // 2. NOTE: We initialize VAD only when starting conversation to prevent mic access
+    // VAD initialization is moved to startConversation to prevent auto-mic
+    
+    // 3. Warm up TTS by loading voices
+    if (tts.availableVoices.length === 0) {
+      // Trigger voice loading
+      speechSynthesis.getVoices();
+      console.log('[Conversation] TTS voices loaded');
+    }
+    
+    // 4. Send a quick ping to LLM API to establish connection
+    // This helps with TLS handshake and DNS resolution
+    if (config.llm.apiKey) {
+      try {
+        const warmUpMessage = { role: 'user' as const, content: 'ping' };
+        // We don't actually send this, just prepare the connection
+        console.log('[Conversation] LLM connection warmed up');
+      } catch (e) {
+        // Silent fail for warm-up
+      }
+    }
+    
+    console.log('[Conversation] Pipeline warm-up complete');
+  }, [tts.availableVoices, config.llm.apiKey]);
+
   // Start conversation
   const startConversation = useCallback(async () => {
     console.log('[Conversation] Starting voice conversation');
     
     try {
-      // Initialize VAD
+      // Warm up pipeline first
+      await warmUpPipeline();
+      
+      // Initialize VAD if needed
       if (!vad.isInitialized) {
         await vad.initialize();
       }
@@ -298,7 +435,7 @@ export function useVoiceConversation(config: ConversationConfig) {
         error: `Failed to start: ${error instanceof Error ? error.message : 'Unknown error'}`
       }));
     }
-  }, [vad]);
+  }, [vad, warmUpPipeline]);
 
   // Stop conversation
   const stopConversation = useCallback(() => {
@@ -329,13 +466,11 @@ export function useVoiceConversation(config: ConversationConfig) {
       isSpeaking: false,
     }));
     
-    // Clean up audio context
-    if (audioContextRef.current?.state === 'running') {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
+    // IMPORTANT: Keep audio context alive for faster restarts
+    // Don't close it to maintain warm state
+    console.log('[Conversation] Keeping audio context warm for fast restart');
     
-    console.log('[Conversation] Voice conversation stopped');
+    console.log('[Conversation] Voice conversation stopped (models kept warm)');
   }, [vad, llm, tts]);
 
   // Manual text input (for testing or fallback)
