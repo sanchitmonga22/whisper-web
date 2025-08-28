@@ -240,7 +240,8 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
         
         // TOTAL PIPELINE TIME: From user speech end to first TTS audio output
         // This is the true end-to-end latency that users experience
-        const totalPipelineTime = Date.now() - performanceRef.current.pipelineStartTime;
+        const totalPipelineTime = performanceRef.current.pipelineStartTime > 0 ? 
+          Date.now() - performanceRef.current.pipelineStartTime : 0;
         
         // Debug logging to verify calculation
         const sttTime = performanceRef.current.sttEndTime - performanceRef.current.speechEndTime;
@@ -270,39 +271,51 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
           calculation: `${sttTime} + ${llmTime} + ${ttsProcessingTime} = ${sumOfParts} (actual: ${totalPipelineTime})`
         });
         
-        // Track averages for all pipeline stages  
-        const currentVadTime = performanceRef.current.speechEndTime - performanceRef.current.speechStartTime;
-        vadTimesRef.current.push(currentVadTime);
-        llmFirstTokenTimesRef.current.push(performanceRef.current.llmFirstTokenTime - performanceRef.current.llmStartTime);
-        ttsTimesRef.current.push(ttsProcessingTime);
-        perceivedLatencyTimesRef.current.push(totalPipelineTime);
+        // Track averages for all pipeline stages - only if values are valid
+        if (totalPipelineTime > 0 && totalPipelineTime < 30000) { // Reasonable upper bound (30 seconds)
+          const currentVadTime = performanceRef.current.speechEndTime - performanceRef.current.speechStartTime;
+          const llmFirstTokenTime = performanceRef.current.llmFirstTokenTime - performanceRef.current.llmStartTime;
+          
+          // Only track valid positive values
+          if (currentVadTime > 0 && currentVadTime < 10000) vadTimesRef.current.push(currentVadTime);
+          if (llmFirstTokenTime > 0 && llmFirstTokenTime < 10000) llmFirstTokenTimesRef.current.push(llmFirstTokenTime);  
+          if (ttsProcessingTime > 0 && ttsProcessingTime < 10000) ttsTimesRef.current.push(ttsProcessingTime);
+          perceivedLatencyTimesRef.current.push(totalPipelineTime);
+        }
         
         // Keep only last 10 measurements for rolling average
         [vadTimesRef, llmFirstTokenTimesRef, ttsTimesRef, perceivedLatencyTimesRef].forEach(ref => {
           if (ref.current.length > 10) ref.current.shift();
         });
         
-        // Calculate averages
-        const avgVAD = vadTimesRef.current.reduce((a, b) => a + b, 0) / vadTimesRef.current.length;
-        const avgLLMFirstToken = llmFirstTokenTimesRef.current.reduce((a, b) => a + b, 0) / llmFirstTokenTimesRef.current.length;
-        const avgTTS = ttsTimesRef.current.reduce((a, b) => a + b, 0) / ttsTimesRef.current.length;
-        const avgPerceivedLatency = perceivedLatencyTimesRef.current.reduce((a, b) => a + b, 0) / perceivedLatencyTimesRef.current.length;
+        // Calculate averages - only if we have valid data
+        const avgVAD = vadTimesRef.current.length > 0 ? 
+          vadTimesRef.current.reduce((a, b) => a + b, 0) / vadTimesRef.current.length : 0;
+        const avgLLMFirstToken = llmFirstTokenTimesRef.current.length > 0 ? 
+          llmFirstTokenTimesRef.current.reduce((a, b) => a + b, 0) / llmFirstTokenTimesRef.current.length : 0;
+        const avgTTS = ttsTimesRef.current.length > 0 ? 
+          ttsTimesRef.current.reduce((a, b) => a + b, 0) / ttsTimesRef.current.length : 0;
+        const avgPerceivedLatency = perceivedLatencyTimesRef.current.length > 0 ? 
+          perceivedLatencyTimesRef.current.reduce((a, b) => a + b, 0) / perceivedLatencyTimesRef.current.length : 0;
 
-        setState(prev => ({
-          ...prev,
-          performance: { 
-            ...prev.performance, 
-            ttsFirstSpeechTime: ttsProcessingTime,
-            totalPipelineTime: totalPipelineTime
-          },
-          stats: {
-            ...prev.stats,
-            avgVADTime: Math.round(avgVAD),
-            avgLLMFirstTokenTime: Math.round(avgLLMFirstToken),
-            avgTTSTime: Math.round(avgTTS),
-            avgPerceivedLatency: Math.round(avgPerceivedLatency)
-          }
-        }));
+        // Only update state if we have a valid pipeline time
+        if (totalPipelineTime > 0) {
+          setState(prev => ({
+            ...prev,
+            performance: { 
+              ...prev.performance, 
+              ttsFirstSpeechTime: ttsProcessingTime,
+              totalPipelineTime: totalPipelineTime
+            },
+            stats: {
+              ...prev.stats,
+              avgVADTime: Math.round(avgVAD),
+              avgLLMFirstTokenTime: Math.round(avgLLMFirstToken),
+              avgTTSTime: Math.round(avgTTS),
+              avgPerceivedLatency: Math.round(avgPerceivedLatency)
+            }
+          }));
+        }
         
         console.log(`[MoonshineConversation] Pipeline complete - Total: ${totalPipelineTime}ms (Speech→Audio)`);
       }
