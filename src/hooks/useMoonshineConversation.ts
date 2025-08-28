@@ -53,6 +53,10 @@ export interface MoonshineConversationState {
     avgResponseTime: number;
     lastResponseTime: number;
     avgSTTTime: number;
+    avgVADTime: number;
+    avgLLMFirstTokenTime: number;
+    avgTTSTime: number;
+    avgPerceivedLatency: number;
   };
   performance: MoonshinePerformanceMetrics;
 }
@@ -72,6 +76,10 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       avgResponseTime: 0,
       lastResponseTime: 0,
       avgSTTTime: 0,
+      avgVADTime: 0,
+      avgLLMFirstTokenTime: 0,
+      avgTTSTime: 0,
+      avgPerceivedLatency: 0,
     },
     performance: {
       vadDetectionTime: 0,
@@ -89,7 +97,22 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   const responseTimesRef = useRef<number[]>([]);
   const sttTimesRef = useRef<number[]>([]);
   const lastTTSEndTimeRef = useRef<number>(0);
+  const processedSentencesRef = useRef<number>(0);
+  
+  // Average tracking for all pipeline stages
+  const vadTimesRef = useRef<number[]>([]);
+  const llmFirstTokenTimesRef = useRef<number[]>([]);
+  const ttsTimesRef = useRef<number[]>([]);
+  const perceivedLatencyTimesRef = useRef<number[]>([]);
   const TTS_COOLDOWN_MS = 300;
+
+  // Extract complete sentences from text for streaming TTS
+  const extractCompleteSentences = useCallback((text: string): string[] => {
+    // Match sentences ending with .!? followed by space or end of string
+    const sentencePattern = /[^.!?]*[.!?]+(?:\s|$)/g;
+    const matches = text.match(sentencePattern);
+    return matches ? matches.map(s => s.trim()).filter(s => s.length > 0) : [];
+  }, []);
 
   // Performance tracking refs
   // 
@@ -218,7 +241,8 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
         
         // TOTAL PIPELINE TIME: From user speech end to first TTS audio output
         // This is the true end-to-end latency that users experience
-        const totalPipelineTime = Date.now() - performanceRef.current.pipelineStartTime;
+        const totalPipelineTime = performanceRef.current.pipelineStartTime > 0 ? 
+          Date.now() - performanceRef.current.pipelineStartTime : 0;
         
         // Debug logging to verify calculation
         const sttTime = performanceRef.current.sttEndTime - performanceRef.current.speechEndTime;
@@ -248,14 +272,51 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
           calculation: `${sttTime} + ${llmTime} + ${ttsProcessingTime} = ${sumOfParts} (actual: ${totalPipelineTime})`
         });
         
-        setState(prev => ({
-          ...prev,
-          performance: { 
-            ...prev.performance, 
-            ttsFirstSpeechTime: ttsProcessingTime,
-            totalPipelineTime: totalPipelineTime
-          }
-        }));
+        // Track averages for all pipeline stages - only if values are valid
+        if (totalPipelineTime > 0 && totalPipelineTime < 30000) { // Reasonable upper bound (30 seconds)
+          const currentVadTime = performanceRef.current.speechEndTime - performanceRef.current.speechStartTime;
+          const llmFirstTokenTime = performanceRef.current.llmFirstTokenTime - performanceRef.current.llmStartTime;
+          
+          // Only track valid positive values
+          if (currentVadTime > 0 && currentVadTime < 10000) vadTimesRef.current.push(currentVadTime);
+          if (llmFirstTokenTime > 0 && llmFirstTokenTime < 10000) llmFirstTokenTimesRef.current.push(llmFirstTokenTime);  
+          if (ttsProcessingTime > 0 && ttsProcessingTime < 10000) ttsTimesRef.current.push(ttsProcessingTime);
+          perceivedLatencyTimesRef.current.push(totalPipelineTime);
+        }
+        
+        // Keep only last 10 measurements for rolling average
+        [vadTimesRef, llmFirstTokenTimesRef, ttsTimesRef, perceivedLatencyTimesRef].forEach(ref => {
+          if (ref.current.length > 10) ref.current.shift();
+        });
+        
+        // Calculate averages - only if we have valid data
+        const avgVAD = vadTimesRef.current.length > 0 ? 
+          vadTimesRef.current.reduce((a, b) => a + b, 0) / vadTimesRef.current.length : 0;
+        const avgLLMFirstToken = llmFirstTokenTimesRef.current.length > 0 ? 
+          llmFirstTokenTimesRef.current.reduce((a, b) => a + b, 0) / llmFirstTokenTimesRef.current.length : 0;
+        const avgTTS = ttsTimesRef.current.length > 0 ? 
+          ttsTimesRef.current.reduce((a, b) => a + b, 0) / ttsTimesRef.current.length : 0;
+        const avgPerceivedLatency = perceivedLatencyTimesRef.current.length > 0 ? 
+          perceivedLatencyTimesRef.current.reduce((a, b) => a + b, 0) / perceivedLatencyTimesRef.current.length : 0;
+
+        // Only update state if we have a valid pipeline time
+        if (totalPipelineTime > 0) {
+          setState(prev => ({
+            ...prev,
+            performance: { 
+              ...prev.performance, 
+              ttsFirstSpeechTime: ttsProcessingTime,
+              totalPipelineTime: totalPipelineTime
+            },
+            stats: {
+              ...prev.stats,
+              avgVADTime: Math.round(avgVAD),
+              avgLLMFirstTokenTime: Math.round(avgLLMFirstToken),
+              avgTTSTime: Math.round(avgTTS),
+              avgPerceivedLatency: Math.round(avgPerceivedLatency)
+            }
+          }));
+        }
         
         // Track performance metrics
         trackPerformanceMetric('total_pipeline_time', totalPipelineTime, 'moonshine');
@@ -409,6 +470,20 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
                 }
               }));
             }
+
+            // Early TTS triggering on sentence boundaries
+            if (config.autoSpeak !== false) {
+              const sentences = extractCompleteSentences(fullResponse);
+              if (sentences.length > processedSentencesRef.current) {
+                const newSentence = sentences[processedSentencesRef.current];
+                if (newSentence && newSentence.trim().length > 0) {
+                  console.log('[MoonshineConversation] Early TTS trigger for sentence:', newSentence);
+                  speakResponse(newSentence);
+                  processedSentencesRef.current++;
+                }
+              }
+            }
+
             setState(prev => ({
               ...prev,
               currentAssistantResponse: fullResponse,
@@ -437,9 +512,22 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
             }));
 
             if (config.autoSpeak !== false) {
-              console.log('[MoonshineConversation] LLM Complete, calling speakResponse at:', Date.now());
-              speakResponse(fullText);
+              // Speak any remaining text that wasn't processed as complete sentences
+              const sentences = extractCompleteSentences(fullText);
+              const remainingText = sentences.slice(processedSentencesRef.current).join(' ').trim();
+              
+              if (remainingText.length > 0) {
+                console.log('[MoonshineConversation] Speaking remaining text:', remainingText);
+                speakResponse(remainingText);
+              } else if (sentences.length === 0) {
+                // No complete sentences, speak the full text
+                console.log('[MoonshineConversation] No complete sentences, speaking full text');
+                speakResponse(fullText);
+              }
             }
+            
+            // Reset sentence counter for next response
+            processedSentencesRef.current = 0;
           }
         );
       } catch (error) {
@@ -463,6 +551,9 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     trackVoiceConversation('moonshine', 'started', {
       tts_engine: config.tts.engine,
     });
+    
+    // Reset sentence processing counter
+    processedSentencesRef.current = 0;
     
     // Initialize Kokoro TTS if selected with optimized settings
     if (config.tts.engine === 'kokoro' && !kokoroTTS.isInitialized) {
@@ -541,10 +632,18 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
         avgResponseTime: 0,
         lastResponseTime: 0,
         avgSTTTime: 0,
+        avgVADTime: 0,
+        avgLLMFirstTokenTime: 0,
+        avgTTSTime: 0,
+        avgPerceivedLatency: 0,
       }
     }));
     responseTimesRef.current = [];
     sttTimesRef.current = [];
+    vadTimesRef.current = [];
+    llmFirstTokenTimesRef.current = [];
+    ttsTimesRef.current = [];
+    perceivedLatencyTimesRef.current = [];
   }, [llm]);
 
   return {
