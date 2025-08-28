@@ -221,12 +221,11 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       }));
       
       lastTTSEndTimeRef.current = Date.now();
-      // Only resume VAD if using native TTS (Kokoro handles this internally)
-      if (config.tts.engine !== 'kokoro') {
-        setTimeout(() => {
-          moonshine.resumeVAD();
-        }, TTS_COOLDOWN_MS);
-      }
+      // Resume VAD after TTS finishes for both native and Kokoro
+      setTimeout(() => {
+        console.log('[MoonshineConversation] Resuming VAD from monitoring effect');
+        moonshine.resumeVAD();
+      }, TTS_COOLDOWN_MS);
 
       // Use the pipeline time that was calculated at first LLM token (user-perceived latency)
       const currentTotalPipelineTime = performanceRef.current.llmFirstTokenTime - performanceRef.current.pipelineStartTime;
@@ -264,42 +263,18 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     
     // Speak using the selected TTS engine
     if (config.tts.engine === 'kokoro') {
-      // For Kokoro, we need to wait for it to finish before resuming VAD
+      // For Kokoro, we need to wait for it to finish
+      // VAD resume is handled by the monitoring effect (same as native TTS)
       try {
         await kokoroTTS.speak(text, true);
       } catch (error) {
         console.error('[MoonshineConversation] Kokoro TTS error:', error);
-      } finally {
-        // Always resume VAD after Kokoro finishes (even if there was an error)
-        console.log('[MoonshineConversation] TTS finished, checking VAD resume conditions:', {
-          isActive: state.isActive,
-          isInitialized: moonshine.isInitialized,
-          isListening: moonshine.isListening
-        });
-        
-        // Always try to resume VAD if moonshine is initialized, regardless of state.isActive
-        // This ensures continuous conversation flow
-        if (moonshine.isInitialized) {
-          console.log('[MoonshineConversation] Resuming VAD after Kokoro TTS');
-          // Give a small delay to avoid audio feedback
-          setTimeout(() => {
-            console.log('[MoonshineConversation] Actually calling resumeVAD now');
-            if (!moonshine.isListening) {
-              moonshine.resumeVAD();
-              console.log('[MoonshineConversation] VAD resumed successfully');
-            } else {
-              console.log('[MoonshineConversation] VAD already listening, no need to resume');
-            }
-          }, TTS_COOLDOWN_MS);
-        } else {
-          console.log('[MoonshineConversation] Cannot resume VAD - moonshine not initialized');
-        }
       }
     } else {
       // For native TTS, the monitoring effect will handle VAD resume
       tts.speak(text);
     }
-  }, [tts, kokoroTTS, moonshine, config.tts.engine, state.isActive, state.isListening]);
+  }, [tts, kokoroTTS, moonshine, config.tts.engine]);
 
   // Handle transcription from Moonshine
   const handleTranscription = useCallback(async (text: string) => {
@@ -396,7 +371,8 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
 
   // Start conversation
   const startConversation = useCallback(async () => {
-    console.log('[MoonshineConversation] Starting conversation...');
+    console.log('[MoonshineConversation] 🟢 Starting conversation...');
+    console.log('[MoonshineConversation] Current state before start:', { isActive: state.isActive, moonshine: { isInitialized: moonshine.isInitialized, isListening: moonshine.isListening } });
     setState(prev => ({ ...prev, isActive: true, error: null }));
     
     // Initialize Kokoro TTS if selected with optimized settings
@@ -413,12 +389,12 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     // Start listening
     await moonshine.startListening();
     
-    console.log('[MoonshineConversation] Conversation started');
+    console.log('[MoonshineConversation] ✅ Conversation started successfully');
   }, [config.tts.engine, kokoroTTS, moonshine]);
 
   // Stop conversation
   const stopConversation = useCallback(() => {
-    console.log('[MoonshineConversation] stopConversation called - Stack trace:', new Error().stack);
+    console.error('[MoonshineConversation] ⚠️ stopConversation called - Stack trace:', new Error().stack);
     console.log('[MoonshineConversation] Stopping conversation...');
     
     moonshine.stopListening();
