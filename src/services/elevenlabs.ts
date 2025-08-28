@@ -37,8 +37,8 @@ export class ElevenLabsService {
     
     this.config = {
       modelId: 'eleven_multilingual_v2',
-      voiceId: 'JBFqnCBsd6RMkjVDRZzb', // Default voice
       ...config,
+      voiceId: config.voiceId || 'JBFqnCBsd6RMkjVDRZzb', // Default voice if none provided
     };
     
     console.log('[ElevenLabsService] Creating ElevenLabsClient...');
@@ -70,18 +70,22 @@ export class ElevenLabsService {
   }
 
   async textToSpeech(text: string, voiceId?: string): Promise<ArrayBuffer> {
+    const finalVoiceId = voiceId || this.config.voiceId;
     console.log('[ElevenLabsService] textToSpeech called:', {
       textLength: text.length,
-      voiceId: voiceId || this.config.voiceId,
+      voiceId: finalVoiceId,
       modelId: this.config.modelId
     });
     
+    if (!finalVoiceId) {
+      throw new Error('No voice ID available. Please select a voice or ensure default voice is configured.');
+    }
+    
     try {
-      const voice = voiceId || this.config.voiceId!;
       console.log('[ElevenLabsService] Calling client.textToSpeech.convert...');
       
       const audioResponse = await this.client.textToSpeech.convert(
-        voice,
+        finalVoiceId,
         {
           text,
           modelId: this.config.modelId,

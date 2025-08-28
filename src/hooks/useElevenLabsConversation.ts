@@ -33,6 +33,8 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
     lastResponseTime: 0,
     avgResponseTime: 0,
   });
+  const [isListening, setIsListening] = useState(false);
+  const isActiveRef = useRef(false);
 
   console.log('[useElevenLabsConversation] Hook initialized with config:', {
     hasApiKey: !!config.apiKey,
@@ -46,6 +48,35 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
   const streamRef = useRef<MediaStream | null>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const responseTimeRef = useRef<number>(0);
+  const performanceRef = useRef<{
+    conversationStart: number;
+    sttStart: number;
+    llmStart: number;
+    ttsStart: number;
+    lastMetrics: {
+      sttLatency: number;
+      llmLatency: number;
+      ttsLatency: number;
+      totalLatency: number;
+    };
+  }>({
+    conversationStart: 0,
+    sttStart: 0,
+    llmStart: 0,
+    ttsStart: 0,
+    lastMetrics: {
+      sttLatency: 0,
+      llmLatency: 0,
+      ttsLatency: 0,
+      totalLatency: 0,
+    }
+  });
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const isRecordingRef = useRef<boolean>(false);
+  const SILENCE_THRESHOLD = 25; // dB threshold for silence detection (lowered for better sensitivity)
+  const SILENCE_DURATION = 1000; // ms of silence before stopping recording (reduced for faster response)
 
   // Initialize service when API key changes
   useEffect(() => {
@@ -131,8 +162,29 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
         currentAudioRef.current = null;
       }
 
-      const audioBuffer = await service.textToSpeech(text, config.voiceId);
-      const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+      const ttsStartTime = Date.now();
+      const audioBuffer = await service.textToSpeech(text, config.voiceId || undefined);
+      const ttsLatency = Date.now() - ttsStartTime;
+      performanceRef.current.lastMetrics.ttsLatency = ttsLatency;
+      console.log('[useElevenLabsConversation] TTS completed in', ttsLatency, 'ms');
+      console.log('[useElevenLabsConversation] Audio buffer received:', {
+        bufferType: typeof audioBuffer,
+        bufferSize: audioBuffer?.byteLength || 0,
+        constructor: audioBuffer?.constructor?.name
+      });
+      
+      // Ensure we have a proper ArrayBuffer
+      let finalBuffer: ArrayBuffer;
+      if (audioBuffer instanceof ArrayBuffer) {
+        finalBuffer = audioBuffer;
+      } else if (audioBuffer && typeof audioBuffer === 'object') {
+        // Convert ReadableStream or other formats to ArrayBuffer
+        finalBuffer = await new Response(audioBuffer as any).arrayBuffer();
+      } else {
+        throw new Error('Invalid audio buffer format received');
+      }
+      
+      const audioBlob = new Blob([finalBuffer], { type: 'audio/mp3' });
       const audioUrl = URL.createObjectURL(audioBlob);
       
       const audio = new Audio(audioUrl);
@@ -141,7 +193,11 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       audio.onended = () => {
         URL.revokeObjectURL(audioUrl);
         currentAudioRef.current = null;
-        updateStatus('listening');
+        updateStatus('idle');
+        // Automatically resume listening after speaking
+        if (isActiveRef.current) {
+          setTimeout(() => startContinuousListening(), 500);
+        }
       };
       
       audio.onerror = () => {
@@ -152,7 +208,23 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       
       await audio.play();
     } catch (err) {
-      handleError(`TTS Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      console.error('[useElevenLabsConversation] TTS Error:', errorMsg);
+      
+      // Check for voice not found error
+      if (errorMsg.includes('voice_not_found')) {
+        handleError('Selected voice not found. Please choose a different voice from settings.');
+      } else if (errorMsg.includes('quota_exceeded')) {
+        handleError('API quota exceeded for TTS. Please check your ElevenLabs account.');
+      } else {
+        handleError(`TTS Error: ${errorMsg}`);
+      }
+      
+      // Resume listening even if TTS fails
+      updateStatus('idle');
+      if (isActiveRef.current) {
+        setTimeout(() => startContinuousListening(), 1000);
+      }
     }
   }, [service, config.autoSpeak, config.voiceId, updateStatus, handleError]);
 
@@ -202,8 +274,10 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
     if (!service) return;
 
     try {
+      performanceRef.current.conversationStart = Date.now();
       responseTimeRef.current = Date.now();
       updateStatus('processing-llm');
+      setCurrentInput(inputText);
 
       // Add user message
       const userMessage: ConversationMessage = {
@@ -215,7 +289,11 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       service.addToConversationHistory(userMessage);
 
       // Process with LLM (you can integrate OpenAI, Anthropic, etc. here)
+      performanceRef.current.llmStart = Date.now();
       const response = await processWithLLM(inputText);
+      const llmLatency = Date.now() - performanceRef.current.llmStart;
+      performanceRef.current.lastMetrics.llmLatency = llmLatency;
+      console.log('[useElevenLabsConversation] LLM completed in', llmLatency, 'ms');
       setCurrentResponse(response);
 
       // Add assistant message
@@ -227,13 +305,236 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       addMessage(assistantMessage);
       service.addToConversationHistory(assistantMessage);
 
+      // Clear input after processing
+      setCurrentInput('');
+
       // Play response if auto-speak is enabled
+      performanceRef.current.ttsStart = Date.now();
       await playAudioResponse(response);
+      
+      // Calculate total latency
+      const totalLatency = Date.now() - performanceRef.current.conversationStart;
+      performanceRef.current.lastMetrics.totalLatency = totalLatency;
+      console.log('[useElevenLabsConversation] Total conversation latency:', totalLatency, 'ms');
       
     } catch (err) {
       handleError(`Processing Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   }, [service, updateStatus, addMessage, processWithLLM, playAudioResponse, handleError]);
+
+  // Helper function to check if we should resume listening
+  const shouldResumeListening = useCallback(() => {
+    const currentStatus = status;
+    return isActiveRef.current && 
+           currentStatus !== 'speaking' && 
+           currentStatus !== 'processing-llm' && 
+           currentStatus !== 'processing-stt';
+  }, [status]);
+
+  // Continuous listening with silence detection
+  const startContinuousListening = useCallback(async () => {
+    console.log('[useElevenLabsConversation] startContinuousListening called', {
+      hasService: !!service,
+      isActiveRef: isActiveRef.current,
+      status,
+      isRecording: isRecordingRef.current
+    });
+    
+    if (!service) {
+      console.log('[useElevenLabsConversation] No service, skipping continuous listening');
+      return;
+    }
+    
+    if (!isActiveRef.current) {
+      console.log('[useElevenLabsConversation] Not active (ref), skipping continuous listening');
+      return;
+    }
+    
+    if (status === 'speaking' || status === 'processing-llm' || status === 'processing-stt') {
+      console.log('[useElevenLabsConversation] Busy with status:', status);
+      return;
+    }
+
+    if (isRecordingRef.current) {
+      console.log('[useElevenLabsConversation] Already recording');
+      return; // Already recording
+    }
+
+    try {
+      console.log('[useElevenLabsConversation] Starting continuous listening...');
+      // Get microphone stream
+      if (!streamRef.current) {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            channelCount: 1,
+            sampleRate: 16000,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          } 
+        });
+        streamRef.current = stream;
+
+        // Set up audio analysis for VAD
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const source = audioContextRef.current.createMediaStreamSource(stream);
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 256;
+        source.connect(analyserRef.current);
+      }
+
+      // Start recording
+      const options = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? { mimeType: 'audio/webm;codecs=opus' }
+        : undefined;
+      
+      const mediaRecorder = new MediaRecorder(streamRef.current!, options);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      isRecordingRef.current = true;
+
+      let isSpeaking = false;
+      let speechStartTime = 0;
+      
+      // Monitor audio levels for VAD
+      const checkAudioLevel = () => {
+        if (!analyserRef.current || !isRecordingRef.current) return;
+
+        const bufferLength = analyserRef.current.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        analyserRef.current.getByteFrequencyData(dataArray);
+
+        // Calculate average volume
+        const average = dataArray.reduce((acc, val) => acc + val, 0) / bufferLength;
+        
+        if (average > SILENCE_THRESHOLD) {
+          if (!isSpeaking) {
+            isSpeaking = true;
+            speechStartTime = Date.now();
+            setIsListening(true);
+            updateStatus('listening');
+          }
+          // Clear any existing silence timer
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+          }
+        } else if (isSpeaking) {
+          // Start silence timer if not already started
+          if (!silenceTimerRef.current) {
+            silenceTimerRef.current = setTimeout(() => {
+              // Check if we recorded enough speech (min 500ms)
+              if (Date.now() - speechStartTime > 500 && mediaRecorderRef.current?.state === 'recording') {
+                mediaRecorderRef.current.stop();
+                isRecordingRef.current = false;
+                isSpeaking = false;
+                setIsListening(false);
+              } else {
+                // Speech was too short, continue listening
+                isSpeaking = false;
+                silenceTimerRef.current = null;
+              }
+            }, SILENCE_DURATION);
+          }
+        }
+
+        // Continue monitoring
+        if (isRecordingRef.current) {
+          requestAnimationFrame(checkAudioLevel);
+        }
+      };
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        if (!service || audioChunksRef.current.length === 0) {
+          // Resume listening after processing
+          if (isActiveRef.current) {
+            setTimeout(() => {
+              if (shouldResumeListening()) {
+                startContinuousListening();
+              }
+            }, 200);
+          }
+          return;
+        }
+
+        const audioBlob = new Blob(audioChunksRef.current, { 
+          type: mediaRecorder.mimeType || 'audio/webm' 
+        });
+        
+        if (audioBlob.size > 1000) { // Minimum size check
+          try {
+            performanceRef.current.sttStart = Date.now();
+            updateStatus('processing-stt');
+            const result = await service.speechToText(audioBlob);
+            const sttLatency = Date.now() - performanceRef.current.sttStart;
+            performanceRef.current.lastMetrics.sttLatency = sttLatency;
+            console.log('[useElevenLabsConversation] STT completed in', sttLatency, 'ms');
+            
+            if (result.text.trim()) {
+              await processUserInput(result.text);
+            } else {
+              updateStatus('idle');
+              // Resume listening if still active
+              if (isActiveRef.current) {
+                // Use a longer delay and avoid immediate recursion
+                setTimeout(() => {
+                  if (shouldResumeListening()) {
+                    startContinuousListening();
+                  }
+                }, 200);
+              }
+            }
+          } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+            console.error('[useElevenLabsConversation] STT Error:', errorMsg);
+            
+            // Check for quota exceeded error
+            if (errorMsg.includes('quota_exceeded')) {
+              handleError('API quota exceeded. Please check your ElevenLabs account or use a different API key.');
+            } else {
+              handleError(`STT Error: ${errorMsg}`);
+            }
+            
+            // Resume listening after error (with longer delay for quota errors)
+            if (isActiveRef.current) {
+              const delay = errorMsg.includes('quota_exceeded') ? 5000 : 1000;
+              setTimeout(() => {
+                if (shouldResumeListening()) {
+                  startContinuousListening();
+                }
+              }, delay);
+            }
+          }
+        } else {
+          // Audio too short, resume listening
+          updateStatus('idle');
+          if (isActiveRef.current) {
+            setTimeout(() => {
+              if (shouldResumeListening()) {
+                startContinuousListening();
+              }
+            }, 200);
+          }
+        }
+      };
+
+      mediaRecorder.start();
+      updateStatus('idle'); // Start in idle, will change to listening when speech detected
+      checkAudioLevel(); // Start VAD monitoring
+      console.log('[useElevenLabsConversation] MediaRecorder started, VAD monitoring active');
+      
+    } catch (err) {
+      const errorMsg = `Microphone Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      console.error('[useElevenLabsConversation] Error in startContinuousListening:', err);
+      handleError(errorMsg);
+    }
+  }, [service, status, updateStatus, processUserInput, handleError, shouldResumeListening]);
 
   const startListening = useCallback(async () => {
     console.log('[useElevenLabsConversation] startListening called', {
@@ -302,10 +603,13 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
             const result = await service.speechToText(audioBlob);
             
             if (result.text.trim()) {
-              setCurrentInput(result.text);
               await processUserInput(result.text);
             } else {
               updateStatus('idle');
+              // Resume continuous listening if active
+              if (isActive) {
+                setTimeout(() => startContinuousListening(), 100);
+              }
             }
           } catch (err) {
             handleError(`STT Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -359,22 +663,42 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
 
     try {
       console.log('[useElevenLabsConversation] Starting conversation...');
+      // Set both state and ref immediately
+      isActiveRef.current = true;
       setIsActive(true);
       setError(null);
-      updateStatus('idle'); // Start in idle state, not listening yet
+      setCurrentInput('');
+      setCurrentResponse('');
+      updateStatus('idle');
+      
+      // Start continuous listening immediately now that isActiveRef is set
+      console.log('[useElevenLabsConversation] Starting continuous listening immediately...');
+      await startContinuousListening();
+      
       console.log('[useElevenLabsConversation] Conversation started successfully');
     } catch (err) {
       const errorMsg = `Failed to start conversation: ${err instanceof Error ? err.message : 'Unknown error'}`;
       console.error('[useElevenLabsConversation] Start conversation error:', err);
       handleError(errorMsg);
+      isActiveRef.current = false;
+      setIsActive(false);
     }
-  }, [service, config.apiKey, handleError, updateStatus, status, isActive]);
+  }, [service, config.apiKey, handleError, updateStatus, startContinuousListening]);
 
   const stopConversation = useCallback(() => {
     console.log('[useElevenLabsConversation] stopConversation called');
     
     setIsActive(false);
+    isActiveRef.current = false;
+    isRecordingRef.current = false;
     updateStatus('idle');
+    setIsListening(false);
+    
+    // Clear silence timer
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
     
     // Stop recording
     stopListening();
@@ -384,6 +708,13 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
       console.log('[useElevenLabsConversation] Audio playback stopped');
+    }
+    
+    // Clean up audio context
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+      analyserRef.current = null;
     }
     
     // Clean up media stream
@@ -417,9 +748,13 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
-      updateStatus('listening');
+      updateStatus('idle');
+      // Resume continuous listening after interruption
+      if (isActiveRef.current) {
+        setTimeout(() => startContinuousListening(), 100);
+      }
     }
-  }, [updateStatus]);
+  }, [updateStatus, startContinuousListening]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -439,6 +774,9 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
     currentResponse,
     stats,
     
+    // Performance metrics
+    metrics: performanceRef.current.lastMetrics,
+    
     // Actions
     startConversation,
     stopConversation,
@@ -452,7 +790,7 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
     service,
     
     // Status checks
-    isListening: status === 'listening',
+    isListening: isListening || status === 'listening',
     isProcessingSTT: status === 'processing-stt',
     isProcessingLLM: status === 'processing-llm',
     isSpeaking: status === 'speaking',
