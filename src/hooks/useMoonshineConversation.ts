@@ -52,6 +52,10 @@ export interface MoonshineConversationState {
     avgResponseTime: number;
     lastResponseTime: number;
     avgSTTTime: number;
+    avgVADTime: number;
+    avgLLMFirstTokenTime: number;
+    avgTTSTime: number;
+    avgPerceivedLatency: number;
   };
   performance: MoonshinePerformanceMetrics;
 }
@@ -71,6 +75,10 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       avgResponseTime: 0,
       lastResponseTime: 0,
       avgSTTTime: 0,
+      avgVADTime: 0,
+      avgLLMFirstTokenTime: 0,
+      avgTTSTime: 0,
+      avgPerceivedLatency: 0,
     },
     performance: {
       vadDetectionTime: 0,
@@ -89,6 +97,12 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   const sttTimesRef = useRef<number[]>([]);
   const lastTTSEndTimeRef = useRef<number>(0);
   const processedSentencesRef = useRef<number>(0);
+  
+  // Average tracking for all pipeline stages
+  const vadTimesRef = useRef<number[]>([]);
+  const llmFirstTokenTimesRef = useRef<number[]>([]);
+  const ttsTimesRef = useRef<number[]>([]);
+  const perceivedLatencyTimesRef = useRef<number[]>([]);
   const TTS_COOLDOWN_MS = 300;
 
   // Extract complete sentences from text for streaming TTS
@@ -256,12 +270,37 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
           calculation: `${sttTime} + ${llmTime} + ${ttsProcessingTime} = ${sumOfParts} (actual: ${totalPipelineTime})`
         });
         
+        // Track averages for all pipeline stages  
+        const currentVadTime = performanceRef.current.speechEndTime - performanceRef.current.speechStartTime;
+        vadTimesRef.current.push(currentVadTime);
+        llmFirstTokenTimesRef.current.push(performanceRef.current.llmFirstTokenTime - performanceRef.current.llmStartTime);
+        ttsTimesRef.current.push(ttsProcessingTime);
+        perceivedLatencyTimesRef.current.push(totalPipelineTime);
+        
+        // Keep only last 10 measurements for rolling average
+        [vadTimesRef, llmFirstTokenTimesRef, ttsTimesRef, perceivedLatencyTimesRef].forEach(ref => {
+          if (ref.current.length > 10) ref.current.shift();
+        });
+        
+        // Calculate averages
+        const avgVAD = vadTimesRef.current.reduce((a, b) => a + b, 0) / vadTimesRef.current.length;
+        const avgLLMFirstToken = llmFirstTokenTimesRef.current.reduce((a, b) => a + b, 0) / llmFirstTokenTimesRef.current.length;
+        const avgTTS = ttsTimesRef.current.reduce((a, b) => a + b, 0) / ttsTimesRef.current.length;
+        const avgPerceivedLatency = perceivedLatencyTimesRef.current.reduce((a, b) => a + b, 0) / perceivedLatencyTimesRef.current.length;
+
         setState(prev => ({
           ...prev,
           performance: { 
             ...prev.performance, 
             ttsFirstSpeechTime: ttsProcessingTime,
             totalPipelineTime: totalPipelineTime
+          },
+          stats: {
+            ...prev.stats,
+            avgVADTime: Math.round(avgVAD),
+            avgLLMFirstTokenTime: Math.round(avgLLMFirstToken),
+            avgTTSTime: Math.round(avgTTS),
+            avgPerceivedLatency: Math.round(avgPerceivedLatency)
           }
         }));
         
@@ -560,10 +599,18 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
         avgResponseTime: 0,
         lastResponseTime: 0,
         avgSTTTime: 0,
+        avgVADTime: 0,
+        avgLLMFirstTokenTime: 0,
+        avgTTSTime: 0,
+        avgPerceivedLatency: 0,
       }
     }));
     responseTimesRef.current = [];
     sttTimesRef.current = [];
+    vadTimesRef.current = [];
+    llmFirstTokenTimesRef.current = [];
+    ttsTimesRef.current = [];
+    perceivedLatencyTimesRef.current = [];
   }, [llm]);
 
   return {

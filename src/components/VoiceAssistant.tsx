@@ -71,48 +71,83 @@ export default function VoiceAssistant() {
   return (
     <div className="flex flex-col gap-4">
       {/* Metrics Display */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {/* VAD Detection */}
         <div className="bg-slate-800/50 rounded-lg p-3 border border-blue-500/10">
           <div className="text-xs font-medium text-blue-400 mb-1">VAD Detection</div>
           <div className="text-lg font-bold text-white">
             {conversation.performance.vadDetectionTime ? `${(conversation.performance.vadDetectionTime / 1000).toFixed(1)}s` : '--'}
           </div>
+          {conversation.stats.avgVADTime > 0 && (
+            <div className="text-xs text-slate-400 mt-0.5">
+              Avg: {(conversation.stats.avgVADTime / 1000).toFixed(1)}s
+            </div>
+          )}
         </div>
-        <div className="bg-slate-800/50 rounded-lg p-3 border border-blue-500/10">
+
+        {/* STT Processing */}
+        <div className="bg-slate-800/50 rounded-lg p-3 border border-green-500/10">
           <div className="text-xs font-medium text-green-400 mb-1">STT Processing</div>
           <div className="text-lg font-bold text-white">
             {conversation.performance.sttProcessingTime || '--'}ms
           </div>
+          {conversation.stats.avgSTTTime > 0 && (
+            <div className="text-xs text-slate-400 mt-0.5">
+              Avg: {conversation.stats.avgSTTTime}ms
+            </div>
+          )}
         </div>
-        <div className="bg-slate-800/50 rounded-lg p-3 border border-blue-500/10">
-          <div className="text-xs font-medium text-purple-400 mb-1">LLM Response</div>
+
+        {/* LLM First Token */}
+        <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
+          <div className="text-xs font-medium text-purple-400 mb-1">LLM First Token</div>
           <div className="text-lg font-bold text-white">
             {conversation.performance.llmFirstTokenTime || '--'}ms
           </div>
-          <div className="text-xs text-slate-400 mt-0.5">First token</div>
-          <div className="text-sm text-slate-300 mt-1">
-            Complete: {conversation.performance.llmCompletionTime || '--'}ms
-          </div>
+          {conversation.stats.avgLLMFirstTokenTime > 0 && (
+            <div className="text-xs text-slate-400 mt-0.5">
+              Avg: {conversation.stats.avgLLMFirstTokenTime}ms
+            </div>
+          )}
         </div>
-        <div className="bg-slate-800/50 rounded-lg p-3 border border-blue-500/10">
+
+        {/* TTS Generation */}
+        <div className="bg-slate-800/50 rounded-lg p-3 border border-orange-500/10">
           <div className="text-xs font-medium text-orange-400 mb-1">
             TTS ({conversation.tts?.engine === 'kokoro' ? 'Kokoro' : 'Native'})
           </div>
           <div className="text-lg font-bold text-white">
             {conversation.performance?.ttsFirstSpeechTime || '--'}ms
           </div>
+          {conversation.stats.avgTTSTime > 0 && (
+            <div className="text-xs text-slate-400 mt-0.5">
+              Avg: {conversation.stats.avgTTSTime}ms
+            </div>
+          )}
         </div>
-        <div className="bg-slate-800/50 rounded-lg p-3 border border-blue-500/10">
+
+        {/* Perceived Latency */}
+        <div className="bg-slate-800/50 rounded-lg p-3 border border-red-500/10">
           <div className="text-xs font-medium text-red-400 mb-1">Perceived Latency</div>
           <div className="text-lg font-bold text-white">
             {conversation.performance.totalPipelineTime || '--'}ms
           </div>
-          <div className="text-xs text-slate-400 mt-0.5">Speech end → Audio out</div>
+          {conversation.stats.avgPerceivedLatency > 0 && (
+            <div className="text-xs text-slate-400 mt-0.5">
+              Avg: {conversation.stats.avgPerceivedLatency}ms
+            </div>
+          )}
+          <div className="text-xs text-slate-500 mt-0.5">Speech end → Audio out</div>
         </div>
-        <div className="bg-slate-800/50 rounded-lg p-3 border border-blue-500/10">
-          <div className="text-xs font-medium text-indigo-400 mb-1">Conversation Turns</div>
+
+        {/* Conversation Stats */}
+        <div className="bg-slate-800/50 rounded-lg p-3 border border-indigo-500/10">
+          <div className="text-xs font-medium text-indigo-400 mb-1">Conversation</div>
           <div className="text-lg font-bold text-white">
-            {conversation.stats.totalTurns || 0}
+            {conversation.stats.totalTurns || 0} turns
+          </div>
+          <div className="text-xs text-slate-400 mt-0.5">
+            LLM Complete: {conversation.performance.llmCompletionTime || '--'}ms
           </div>
         </div>
       </div>
