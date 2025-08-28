@@ -1,8 +1,15 @@
+import { useEffect } from "react";
 import VoiceAssistant from "./components/VoiceAssistant";
 import ElevenLabsAssistant from "./components/ElevenLabsAssistant";
 import ThemeToggle from "./components/ThemeToggle";
+import { trackDemoInteraction, trackFeatureUsage } from "./utils/analytics";
 
 function App() {
+    // Track page load
+    useEffect(() => {
+        trackDemoInteraction('page_loaded');
+        trackFeatureUsage('voice_demo_access');
+    }, []);
 
     return (
         <div className='min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900'>
@@ -32,6 +39,7 @@ function App() {
                             target='_blank'
                             rel='noopener noreferrer'
                             className='text-xs text-slate-400 hover:text-blue-400 transition-colors'
+                            onClick={() => trackDemoInteraction('external_link_click', { destination: 'runanywhere.ai' })}
                         >
                             runanywhere.ai →
                         </a>

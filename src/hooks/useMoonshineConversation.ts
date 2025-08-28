@@ -4,6 +4,7 @@ import { useLLMStreaming, type LLMConfig } from './useLLMStreaming';
 import { useSystemTTS } from './useSystemTTS';
 import { useKokoroTTS } from './useKokoroTTS';
 import type { KokoroVoice } from '../services/kokoroTTSService';
+import { trackVoiceConversation, trackPerformanceMetric } from '../utils/analytics';
 
 export interface TTSConfig {
   engine?: 'native' | 'kokoro';
@@ -256,6 +257,12 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
           }
         }));
         
+        // Track performance metrics
+        trackPerformanceMetric('total_pipeline_time', totalPipelineTime, 'moonshine');
+        trackPerformanceMetric('stt_processing_time', sttTime, 'moonshine');
+        trackPerformanceMetric('llm_processing_time', llmTime, 'moonshine');
+        trackPerformanceMetric('tts_processing_time', ttsProcessingTime, 'moonshine');
+        
         console.log(`[MoonshineConversation] Pipeline complete - Total: ${totalPipelineTime}ms (Speech→Audio)`);
       }
     }
@@ -452,6 +459,11 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     console.log('[MoonshineConversation] Current state before start:', { isActive: state.isActive, moonshine: { isInitialized: moonshine.isInitialized, isListening: moonshine.isListening } });
     setState(prev => ({ ...prev, isActive: true, error: null }));
     
+    // Track conversation start
+    trackVoiceConversation('moonshine', 'started', {
+      tts_engine: config.tts.engine,
+    });
+    
     // Initialize Kokoro TTS if selected with optimized settings
     if (config.tts.engine === 'kokoro' && !kokoroTTS.isInitialized) {
       console.log('[MoonshineConversation] Initializing Kokoro TTS with optimized settings...');
@@ -473,6 +485,14 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   const stopConversation = useCallback(() => {
     console.error('[MoonshineConversation] ⚠️ stopConversation called - Stack trace:', new Error().stack);
     console.log('[MoonshineConversation] Stopping conversation...');
+    
+    // Track conversation completion if it was running
+    if (state.isActive) {
+      trackVoiceConversation('moonshine', 'completed', {
+        duration: Date.now() - performanceRef.current.speechStartTime,
+        tts_engine: config.tts.engine,
+      });
+    }
     
     moonshine.stopListening();
     llm.stop();
