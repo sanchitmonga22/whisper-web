@@ -4,7 +4,14 @@ import { useMoonshineConversation, type MoonshineConversationConfig } from '../h
 export default function VoiceAssistant() {
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState(localStorage.getItem('voiceai_api_key') || '');
+  // Use native TTS by default, but allow user to change it
+  const [ttsEngine, setTtsEngine] = useState<'native' | 'kokoro'>(
+    (localStorage.getItem('voiceai_tts_engine') as any) || 'native'
+  );
   const [selectedVoice] = useState(localStorage.getItem('voiceai_voice') || '');
+  const [kokoroVoice, setKokoroVoice] = useState<any>(
+    localStorage.getItem('voiceai_kokoro_voice') || 'af_sky'
+  );
   const [llmModel, setLLMModel] = useState(localStorage.getItem('voiceai_model') || 'gpt-4o');
   const [moonshineModel, setMoonshineModel] = useState<'moonshine-tiny' | 'moonshine-base'>(
     (localStorage.getItem('voiceai_moonshine_model') as any) || 'moonshine-tiny'
@@ -24,7 +31,10 @@ export default function VoiceAssistant() {
       temperature: 0.7,
     },
     tts: {
+      engine: ttsEngine,
       voice: selectedVoice,
+      kokoroVoice: kokoroVoice,
+      kokoroDtype: 'fp32', // Use fp32 for faster generation when using Kokoro
       rate: 1.2,
       pitch: 1.0,
       volume: 0.9,
@@ -50,11 +60,13 @@ export default function VoiceAssistant() {
   // Save settings to localStorage
   useEffect(() => {
     localStorage.setItem('voiceai_api_key', apiKey);
+    localStorage.setItem('voiceai_tts_engine', ttsEngine);
     localStorage.setItem('voiceai_voice', selectedVoice);
+    localStorage.setItem('voiceai_kokoro_voice', kokoroVoice);
     localStorage.setItem('voiceai_model', llmModel);
     localStorage.setItem('voiceai_prompt', systemPrompt);
     localStorage.setItem('voiceai_moonshine_model', moonshineModel);
-  }, [apiKey, selectedVoice, llmModel, systemPrompt, moonshineModel]);
+  }, [apiKey, ttsEngine, selectedVoice, kokoroVoice, llmModel, systemPrompt, moonshineModel]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -79,7 +91,9 @@ export default function VoiceAssistant() {
           </div>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-3 border border-blue-500/10">
-          <div className="text-xs font-medium text-orange-400 mb-1">TTS First Speech</div>
+          <div className="text-xs font-medium text-orange-400 mb-1">
+            TTS ({conversation.tts?.engine === 'kokoro' ? 'Kokoro' : 'Native'})
+          </div>
           <div className="text-lg font-bold text-white">
             {conversation.performance?.ttsFirstSpeechTime || '--'}ms
           </div>
@@ -210,6 +224,60 @@ export default function VoiceAssistant() {
                   <option value="moonshine-base">Base (Accurate)</option>
                 </select>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  TTS Engine
+                </label>
+                <select
+                  value={ttsEngine}
+                  onChange={(e) => setTtsEngine(e.target.value as 'native' | 'kokoro')}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                >
+                  <option value="native">Browser TTS</option>
+                  <option value="kokoro">Kokoro TTS (82M)</option>
+                </select>
+              </div>
+
+              {ttsEngine === 'kokoro' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                    Kokoro Voice
+                  </label>
+                  <select
+                    value={kokoroVoice}
+                    onChange={(e) => setKokoroVoice(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                  >
+                    <optgroup label="American Female">
+                      <option value="af_sky">Sky</option>
+                      <option value="af_heart">Heart ❤️</option>
+                      <option value="af_bella">Bella 🔥</option>
+                      <option value="af_nicole">Nicole 🎧</option>
+                      <option value="af_sarah">Sarah</option>
+                      <option value="af_alloy">Alloy</option>
+                    </optgroup>
+                    <optgroup label="American Male">
+                      <option value="am_michael">Michael</option>
+                      <option value="am_echo">Echo</option>
+                      <option value="am_fenrir">Fenrir</option>
+                      <option value="am_onyx">Onyx</option>
+                    </optgroup>
+                    <optgroup label="British Female">
+                      <option value="bf_emma">Emma</option>
+                      <option value="bf_isabella">Isabella</option>
+                      <option value="bf_alice">Alice</option>
+                    </optgroup>
+                    <optgroup label="British Male">
+                      <option value="bm_george">George</option>
+                      <option value="bm_lewis">Lewis</option>
+                      <option value="bm_fable">Fable</option>
+                    </optgroup>
+                  </select>
+                </div>
+              )}
             </div>
           </div>
         </div>

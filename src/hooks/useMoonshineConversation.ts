@@ -2,12 +2,20 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMoonshine, type MoonshineConfig } from './useMoonshine';
 import { useLLMStreaming, type LLMConfig } from './useLLMStreaming';
 import { useSystemTTS } from './useSystemTTS';
+import { useKokoroTTS } from './useKokoroTTS';
+import type { KokoroVoice } from '../services/kokoroTTSService';
 
 export interface TTSConfig {
+  engine?: 'native' | 'kokoro';
+  // Native TTS config
   rate?: number;
   pitch?: number;
   volume?: number;
   voice?: string;
+  // Kokoro TTS config
+  kokoroVoice?: KokoroVoice;
+  kokoroModel?: string;
+  kokoroDtype?: 'fp32' | 'fp16' | 'q8' | 'q4' | 'q4f16';
 }
 
 export interface MoonshineConversationConfig {
@@ -142,8 +150,17 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   // Initialize LLM
   const llm = useLLMStreaming(config.llm);
 
-  // Initialize TTS with system TTS
-  const tts = useSystemTTS(config.tts);
+  // Initialize TTS based on engine selection
+  const nativeTTS = useSystemTTS(config.tts);
+  const kokoroTTS = useKokoroTTS({
+    voice: config.tts.kokoroVoice || 'af_sky',
+    model: config.tts.kokoroModel,
+    dtype: config.tts.kokoroDtype,
+    autoInitialize: config.tts.engine === 'kokoro',
+  });
+  
+  // Use the selected TTS engine
+  const tts = config.tts.engine === 'kokoro' ? kokoroTTS : nativeTTS;
 
   // Update statistics
   const updateStats = useCallback((responseTime: number) => {
@@ -203,9 +220,12 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       }));
       
       lastTTSEndTimeRef.current = Date.now();
-      setTimeout(() => {
-        moonshine.resumeVAD();
-      }, TTS_COOLDOWN_MS);
+      // Only resume VAD if using native TTS (Kokoro handles this internally)
+      if (config.tts.engine !== 'kokoro') {
+        setTimeout(() => {
+          moonshine.resumeVAD();
+        }, TTS_COOLDOWN_MS);
+      }
 
       // Use the pipeline time that was calculated at first LLM token (user-perceived latency)
       const currentTotalPipelineTime = performanceRef.current.llmFirstTokenTime - performanceRef.current.pipelineStartTime;
@@ -235,8 +255,50 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       await new Promise(resolve => setTimeout(resolve, TTS_COOLDOWN_MS - timeSinceLastTTS));
     }
     
-    tts.speak(text);
-  }, [tts]);
+    // Pause VAD before speaking to prevent echo/feedback
+    if (moonshine.isListening) {
+      console.log('[MoonshineConversation] Pausing VAD before TTS');
+      moonshine.pauseVAD();
+    }
+    
+    // Speak using the selected TTS engine
+    if (config.tts.engine === 'kokoro') {
+      // For Kokoro, we need to wait for it to finish before resuming VAD
+      try {
+        await kokoroTTS.speak(text, true);
+      } catch (error) {
+        console.error('[MoonshineConversation] Kokoro TTS error:', error);
+      } finally {
+        // Always resume VAD after Kokoro finishes (even if there was an error)
+        console.log('[MoonshineConversation] TTS finished, checking VAD resume conditions:', {
+          isActive: state.isActive,
+          isInitialized: moonshine.isInitialized,
+          isListening: moonshine.isListening
+        });
+        
+        // Always try to resume VAD if moonshine is initialized, regardless of state.isActive
+        // This ensures continuous conversation flow
+        if (moonshine.isInitialized) {
+          console.log('[MoonshineConversation] Resuming VAD after Kokoro TTS');
+          // Give a small delay to avoid audio feedback
+          setTimeout(() => {
+            console.log('[MoonshineConversation] Actually calling resumeVAD now');
+            if (!moonshine.isListening) {
+              moonshine.resumeVAD();
+              console.log('[MoonshineConversation] VAD resumed successfully');
+            } else {
+              console.log('[MoonshineConversation] VAD already listening, no need to resume');
+            }
+          }, TTS_COOLDOWN_MS);
+        } else {
+          console.log('[MoonshineConversation] Cannot resume VAD - moonshine not initialized');
+        }
+      }
+    } else {
+      // For native TTS, the monitoring effect will handle VAD resume
+      tts.speak(text);
+    }
+  }, [tts, kokoroTTS, moonshine, config.tts.engine, state.isActive, state.isListening]);
 
   // Handle transcription from Moonshine
   const handleTranscription = useCallback(async (text: string) => {
@@ -336,6 +398,12 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     console.log('[MoonshineConversation] Starting conversation...');
     setState(prev => ({ ...prev, isActive: true, error: null }));
     
+    // Initialize Kokoro TTS if selected
+    if (config.tts.engine === 'kokoro' && !kokoroTTS.isInitialized) {
+      console.log('[MoonshineConversation] Initializing Kokoro TTS...');
+      await kokoroTTS.initialize();
+    }
+    
     // Initialize moonshine components
     await moonshine.initialize();
     
@@ -343,10 +411,11 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     await moonshine.startListening();
     
     console.log('[MoonshineConversation] Conversation started');
-  }, [moonshine]);
+  }, [config.tts.engine, kokoroTTS, moonshine]);
 
   // Stop conversation
   const stopConversation = useCallback(() => {
+    console.log('[MoonshineConversation] stopConversation called - Stack trace:', new Error().stack);
     console.log('[MoonshineConversation] Stopping conversation...');
     
     moonshine.stopListening();
@@ -409,6 +478,14 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     // Moonshine specific state
     interimTranscription: moonshine.interimTranscription,
     isTranscribing: moonshine.isTranscribing,
+    
+    // TTS info
+    tts: {
+      engine: config.tts.engine || 'native',
+      isReady: config.tts.engine === 'kokoro' ? kokoroTTS.isReady : true,
+      currentVoice: config.tts.engine === 'kokoro' ? kokoroTTS.currentVoice : config.tts.voice,
+      performanceMetrics: config.tts.engine === 'kokoro' ? kokoroTTS.performanceMetrics : undefined,
+    },
     
     // Actions
     startConversation,

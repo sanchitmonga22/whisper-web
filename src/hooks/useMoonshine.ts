@@ -74,24 +74,25 @@ export function useMoonshine(config: MoonshineConfig = {}) {
           device,
           dtype: dtype,
           // Moonshine-specific optimizations
-          chunk_length_s: 10, // Shorter chunks for responsiveness
-          stride_length_s: 2,
+          chunk_length_s: 5, // Even shorter chunks for better responsiveness
+          stride_length_s: 1,
         }
       );
 
       console.log('[Moonshine] STT pipeline initialized', { model: modelName, device });
       
-      // Warm up the model
-      const warmupAudio = new Float32Array(16000); // 1 second of silence
+      // Warm up the model with a very small audio to reduce initial delay
+      const warmupAudio = new Float32Array(8000); // 0.5 seconds of silence
       if (pipelineRef.current) {
+        console.log('[Moonshine] Warming up model...');
+        const warmupStart = Date.now();
         await pipelineRef.current(warmupAudio, {
           language: 'english',
           task: 'transcribe',
           return_timestamps: false,
         });
+        console.log(`[Moonshine] Model warmed up in ${Date.now() - warmupStart}ms`);
       }
-      
-      console.log('[Moonshine] Model warmed up');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       console.error('[Moonshine] Pipeline initialization error:', errorMessage);
@@ -172,7 +173,10 @@ export function useMoonshine(config: MoonshineConfig = {}) {
   // Transcribe audio using Moonshine
   const transcribeAudio = useCallback(async (audio: Float32Array) => {
     if (!pipelineRef.current || isProcessingRef.current) {
-      console.log('[Moonshine] Pipeline not ready or already processing');
+      console.log('[Moonshine] Pipeline not ready or already processing', {
+        pipeline: !!pipelineRef.current,
+        processing: isProcessingRef.current
+      });
       return;
     }
 
@@ -180,7 +184,10 @@ export function useMoonshine(config: MoonshineConfig = {}) {
     performanceRef.current.transcriptionStartTime = Date.now();
 
     try {
-      console.log('[Moonshine] Starting transcription...');
+      console.log('[Moonshine] Starting transcription...', {
+        audioLength: audio.length,
+        audioDuration: `${(audio.length / 16000).toFixed(2)}s`
+      });
       setState(prev => ({ ...prev, isTranscribing: true, interimTranscription: 'Processing...' }));
 
       const result = await pipelineRef.current(audio, {
@@ -190,10 +197,11 @@ export function useMoonshine(config: MoonshineConfig = {}) {
       });
 
       const transcriptionTime = Date.now() - performanceRef.current.transcriptionStartTime;
-      const text = result.text.trim();
+      const text = result?.text?.trim() || '';
       
       console.log('[Moonshine] Transcription complete', { 
-        text, 
+        text: text || '(empty)',
+        result,
         time: `${transcriptionTime}ms`,
         realTimeFactor: transcriptionTime / (audio.length / 16) // ms per second of audio
       });
