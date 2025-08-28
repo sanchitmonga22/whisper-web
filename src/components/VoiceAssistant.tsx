@@ -89,6 +89,10 @@ export default function VoiceAssistant() {
           <div className="text-lg font-bold text-white">
             {conversation.performance.llmFirstTokenTime || '--'}ms
           </div>
+          <div className="text-xs text-slate-400 mt-0.5">First token</div>
+          <div className="text-sm text-slate-300 mt-1">
+            Complete: {conversation.performance.llmCompletionTime || '--'}ms
+          </div>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-3 border border-blue-500/10">
           <div className="text-xs font-medium text-orange-400 mb-1">

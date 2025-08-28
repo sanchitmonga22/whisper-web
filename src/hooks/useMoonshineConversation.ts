@@ -101,13 +101,14 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   // 2. User stops speaking -> speechEndTime + pipelineStartTime recorded (processing begins)
   // 3. STT processes audio -> sttProcessingTime calculated
   // 4. LLM receives text and starts processing -> llmStartTime recorded
-  // 5. LLM returns first token -> llmFirstTokenTime recorded + TOTAL PIPELINE TIME ENDS
-  //    (This is when TTS begins and user starts hearing response)
-  // 6. LLM completes -> llmCompletionTime calculated
-  // 7. TTS speaks -> ttsCompletionTime calculated
+  // 5. LLM returns first token -> llmFirstTokenTime recorded
+  // 6. TTS begins generation (Kokoro) or starts speaking (native) -> ttsStartTime recorded
+  // 7. TTS audio starts playing -> ttsFirstSpeechTime recorded + TOTAL PIPELINE TIME CALCULATED
+  // 8. LLM completes -> llmCompletionTime calculated
+  // 9. TTS finishes speaking -> ttsCompletionTime calculated
   //
-  // Key insight: Total pipeline time = pipelineStartTime to llmFirstTokenTime
-  // This captures the user's actual waiting experience from speech end to audio start.
+  // Key insight: Total pipeline time = pipelineStartTime to ttsFirstSpeechTime
+  // This captures the user's actual waiting experience from speech end to hearing the first audio.
   //
   const performanceRef = useRef({
     speechStartTime: 0,
@@ -127,7 +128,11 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   const moonshine = useMoonshine({
     ...config.moonshine,
     onSpeechStart: () => {
+      // Reset performance metrics for new turn
       performanceRef.current.speechStartTime = Date.now();
+      performanceRef.current.llmFirstTokenTime = 0;
+      performanceRef.current.llmStartTime = 0;
+      performanceRef.current.sttEndTime = 0;
       setState(prev => ({ ...prev, isListening: true, isProcessingSTT: true }));
     },
     onSpeechEnd: () => {
@@ -184,32 +189,82 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   }, []);
 
   // Monitor TTS state changes for performance tracking and VAD control
-  const prevTTSStateRef = useRef({ isSpeaking: false });
+  const prevTTSStateRef = useRef({ isSpeaking: false, isGenerating: false });
   useEffect(() => {
     const wasSpeaking = prevTTSStateRef.current.isSpeaking;
     const isSpeaking = tts.isSpeaking;
+    const wasGenerating = prevTTSStateRef.current.isGenerating;
+    const isGenerating = config.tts.engine === 'kokoro' ? kokoroTTS.isGenerating : false;
+    
+    // Track when TTS generation starts (for Kokoro)
+    if (!wasGenerating && isGenerating) {
+      console.log('[MoonshineConversation] Kokoro TTS generation started');
+      // Don't set ttsStartTime here - it's already set when speakResponse is called
+    }
     
     // TTS started speaking
     if (!wasSpeaking && isSpeaking) {
-      performanceRef.current.ttsStartTime = Date.now();
+      // Don't set ttsStartTime here - it's already set when speakResponse is called
       
       setState(prev => ({ ...prev, isSpeaking: true }));
       moonshine.pauseVAD();
       
-      // Track first speech time
+      // Track first speech time and calculate total pipeline time
       if (!performanceRef.current.ttsFirstSpeechTime) {
         performanceRef.current.ttsFirstSpeechTime = Date.now();
+        const ttsProcessingTime = performanceRef.current.ttsStartTime ? 
+          Date.now() - performanceRef.current.ttsStartTime : 0;
+        
+        // TOTAL PIPELINE TIME: From user speech end to first TTS audio output
+        // This is the true end-to-end latency that users experience
+        const totalPipelineTime = Date.now() - performanceRef.current.pipelineStartTime;
+        
+        // Debug logging to verify calculation
+        const sttTime = performanceRef.current.sttEndTime - performanceRef.current.speechEndTime;
+        const llmTime = performanceRef.current.llmFirstTokenTime - performanceRef.current.llmStartTime;
+        const sumOfParts = sttTime + llmTime + ttsProcessingTime;
+        
+        // Calculate gaps between stages
+        const sttToLLMGap = performanceRef.current.llmStartTime - performanceRef.current.sttEndTime;
+        const llmToTTSGap = performanceRef.current.ttsStartTime - performanceRef.current.llmEndTime;
+        
+        console.log('[MoonshineConversation] Pipeline timing breakdown:', {
+          pipelineStartTime: performanceRef.current.pipelineStartTime,
+          currentTime: Date.now(),
+          totalPipelineTime: totalPipelineTime,
+          stages: {
+            stt: sttTime,
+            llm: llmTime,
+            tts: ttsProcessingTime
+          },
+          gaps: {
+            sttToLLM: sttToLLMGap,
+            llmToTTS: llmToTTSGap
+          },
+          sumOfParts: sumOfParts,
+          sumWithGaps: sumOfParts + sttToLLMGap + llmToTTSGap,
+          difference: totalPipelineTime - sumOfParts,
+          calculation: `${sttTime} + ${llmTime} + ${ttsProcessingTime} = ${sumOfParts} (actual: ${totalPipelineTime})`
+        });
+        
         setState(prev => ({
           ...prev,
-          performance: { ...prev.performance, ttsFirstSpeechTime: Date.now() - performanceRef.current.ttsStartTime }
+          performance: { 
+            ...prev.performance, 
+            ttsFirstSpeechTime: ttsProcessingTime,
+            totalPipelineTime: totalPipelineTime
+          }
         }));
+        
+        console.log(`[MoonshineConversation] Pipeline complete - Total: ${totalPipelineTime}ms (Speech→Audio)`);
       }
     }
     
     // TTS stopped speaking
     if (wasSpeaking && !isSpeaking) {
       performanceRef.current.ttsEndTime = Date.now();
-      const ttsTime = performanceRef.current.ttsEndTime - performanceRef.current.ttsStartTime;
+      const ttsTime = performanceRef.current.ttsStartTime ? 
+        performanceRef.current.ttsEndTime - performanceRef.current.ttsStartTime : 0;
       
       setState(prev => ({
         ...prev,
@@ -220,6 +275,11 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
         }
       }));
       
+      // Reset timing for next turn
+      performanceRef.current.ttsStartTime = 0;
+      performanceRef.current.ttsFirstSpeechTime = 0;
+      performanceRef.current.pipelineStartTime = 0;
+      
       lastTTSEndTimeRef.current = Date.now();
       // Resume VAD after TTS finishes for both native and Kokoro
       setTimeout(() => {
@@ -227,13 +287,16 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
         moonshine.resumeVAD();
       }, TTS_COOLDOWN_MS);
 
-      // Use the pipeline time that was calculated at first LLM token (user-perceived latency)
-      const currentTotalPipelineTime = performanceRef.current.llmFirstTokenTime - performanceRef.current.pipelineStartTime;
-      updateStats(currentTotalPipelineTime);
+      // Update stats with the final pipeline time (which includes TTS)
+      const finalPipelineTime = state.performance.totalPipelineTime || 0;
+      if (finalPipelineTime > 0) {
+        updateStats(finalPipelineTime);
+      }
     }
     
     prevTTSStateRef.current.isSpeaking = isSpeaking;
-  }, [tts.isSpeaking, moonshine, updateStats]);
+    prevTTSStateRef.current.isGenerating = isGenerating;
+  }, [tts.isSpeaking, kokoroTTS.isGenerating, moonshine, updateStats, config.tts.engine, state.performance.totalPipelineTime]);
 
   // Handle TTS errors
   useEffect(() => {
@@ -249,6 +312,12 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   // Speak the response
   const speakResponse = useCallback(async (text: string) => {
     if (!text || text.trim().length === 0) return;
+    
+    // Mark when TTS is requested (right after LLM completion)
+    if (!performanceRef.current.ttsStartTime) {
+      performanceRef.current.ttsStartTime = Date.now();
+      console.log('[MoonshineConversation] TTS requested at:', performanceRef.current.ttsStartTime);
+    }
     
     const timeSinceLastTTS = Date.now() - lastTTSEndTimeRef.current;
     if (timeSinceLastTTS < TTS_COOLDOWN_MS) {
@@ -280,6 +349,12 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   const handleTranscription = useCallback(async (text: string) => {
     performanceRef.current.sttEndTime = Date.now();
     const sttTime = performanceRef.current.sttEndTime - performanceRef.current.speechEndTime;
+    
+    console.log('[MoonshineConversation] STT Complete:', {
+      speechEndTime: performanceRef.current.speechEndTime,
+      sttEndTime: performanceRef.current.sttEndTime,
+      sttTime: sttTime
+    });
     
     // Update STT times for averaging
     sttTimesRef.current.push(sttTime);
@@ -318,17 +393,12 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
               performanceRef.current.llmFirstTokenTime = Date.now();
               const firstTokenTime = performanceRef.current.llmFirstTokenTime - performanceRef.current.llmStartTime;
               
-              // TOTAL PIPELINE TIME: Calculate user-perceived latency
-              // From when user stops talking to when they hear the first audio response
-              // This represents the true "time to first response" metric
-              const totalPipelineTime = performanceRef.current.llmFirstTokenTime - performanceRef.current.pipelineStartTime;
-              
               setState(prev => ({
                 ...prev,
                 performance: { 
                   ...prev.performance, 
-                  llmFirstTokenTime: firstTokenTime,
-                  totalPipelineTime: totalPipelineTime
+                  llmFirstTokenTime: firstTokenTime
+                  // Note: totalPipelineTime is calculated when TTS actually starts speaking
                 }
               }));
             }
@@ -342,6 +412,12 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
             performanceRef.current.llmEndTime = Date.now();
             const llmTime = performanceRef.current.llmEndTime - performanceRef.current.llmStartTime;
             
+            console.log('[MoonshineConversation] LLM timing:', {
+              llmStartTime: performanceRef.current.llmStartTime,
+              llmEndTime: performanceRef.current.llmEndTime,
+              llmTime: llmTime
+            });
+            
             setState(prev => ({
               ...prev,
               isProcessingLLM: false,
@@ -354,6 +430,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
             }));
 
             if (config.autoSpeak !== false) {
+              console.log('[MoonshineConversation] LLM Complete, calling speakResponse at:', Date.now());
               speakResponse(fullText);
             }
           }
