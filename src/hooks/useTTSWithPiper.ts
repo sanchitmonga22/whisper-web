@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { PiperTTSService } from '../services/piperTTSService';
-import type { VoiceId } from '../../EXTERNAL/piper-tts-web/src/types';
+type VoiceId = string;
 
 export interface TTSConfig {
   engine?: 'native' | 'piper';

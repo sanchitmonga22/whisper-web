@@ -64,19 +64,15 @@ export function useMoonshine(config: MoonshineConfig = {}) {
 
       // Determine device and dtype
       const device = config.device || ('gpu' in navigator ? 'webgpu' : 'wasm');
-      const dtype = config.quantization === 'q4' 
-        ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
-        : config.quantization === 'fp32'
-        ? { encoder_model: 'fp32', decoder_model_merged: 'fp32' }
-        : { encoder_model: 'fp32', decoder_model_merged: 'q8' };
+      const dtype = config.quantization === 'q4' ? 'q4' : config.quantization === 'fp32' ? 'fp32' : 'q8';
 
       // Create pipeline
-      pipelineRef.current = await pipeline(
+      pipelineRef.current = await (pipeline as any)(
         'automatic-speech-recognition',
         modelName,
         {
           device,
-          dtype,
+          dtype: dtype,
           // Moonshine-specific optimizations
           chunk_length_s: 10, // Shorter chunks for responsiveness
           stride_length_s: 2,
@@ -87,11 +83,13 @@ export function useMoonshine(config: MoonshineConfig = {}) {
       
       // Warm up the model
       const warmupAudio = new Float32Array(16000); // 1 second of silence
-      await pipelineRef.current(warmupAudio, {
-        language: 'english',
-        task: 'transcribe',
-        return_timestamps: false,
-      });
+      if (pipelineRef.current) {
+        await pipelineRef.current(warmupAudio, {
+          language: 'english',
+          task: 'transcribe',
+          return_timestamps: false,
+        });
+      }
       
       console.log('[Moonshine] Model warmed up');
     } catch (err) {
