@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { ElevenLabsService, ConversationMessage, ElevenLabsConfig } from '../services/elevenlabs';
 import OpenAI from 'openai';
+import { trackVoiceConversation } from '../utils/analytics';
 
 interface UseElevenLabsConversationConfig extends ElevenLabsConfig {
   onMessage?: (message: ConversationMessage) => void;
@@ -671,6 +672,12 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       setCurrentResponse('');
       updateStatus('idle');
       
+      // Track conversation start
+      trackVoiceConversation('elevenlabs', 'started', {
+        voice_id: config.voiceId,
+        model_id: config.modelId,
+      });
+      
       // Start continuous listening immediately now that isActiveRef is set
       console.log('[useElevenLabsConversation] Starting continuous listening immediately...');
       await startContinuousListening();
@@ -687,6 +694,15 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
 
   const stopConversation = useCallback(() => {
     console.log('[useElevenLabsConversation] stopConversation called');
+    
+    // Track conversation completion if it was running
+    if (isActiveRef.current) {
+      trackVoiceConversation('elevenlabs', 'completed', {
+        voice_id: config.voiceId,
+        model_id: config.modelId,
+        message_count: messages.length,
+      });
+    }
     
     setIsActive(false);
     isActiveRef.current = false;
