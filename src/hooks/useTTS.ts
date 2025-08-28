@@ -60,7 +60,7 @@ export function useTTS(config: TTSConfig = {}) {
     if (config.voice) {
       selectedVoice = voices.find(voice => 
         voice.name === config.voice || 
-        voice.name.toLowerCase().includes(config.voice.toLowerCase())
+        voice.name.toLowerCase().includes(config.voice!.toLowerCase())
       );
     }
 
@@ -194,6 +194,7 @@ export function useTTS(config: TTSConfig = {}) {
           performanceMetrics: {
             ...prev.performanceMetrics,
             lastSpeechEndTime: now,
+            firstSpeechTime: prev.performanceMetrics.firstSpeechTime || 0,
           }
         }));
       }

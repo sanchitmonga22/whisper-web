@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMoonshine, type MoonshineConfig } from './useMoonshine';
 import { useLLMStreaming, type LLMConfig } from './useLLMStreaming';
-import { useTTS, type TTSConfig } from './useTTS';
-import Constants from '../utils/Constants';
+import { useTTSWithPiper, type TTSConfig } from './useTTSWithPiper';
 
 export interface MoonshineConversationConfig {
   llm: LLMConfig;
@@ -136,8 +135,12 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   // Initialize LLM
   const llm = useLLMStreaming(config.llm);
 
-  // Initialize TTS
-  const tts = useTTS(config.tts);
+  // Initialize TTS with Piper as default
+  const tts = useTTSWithPiper({
+    ...config.tts,
+    engine: 'piper', // Use Piper by default
+    piperVoiceId: 'en_US-hfc_female-medium',
+  });
 
   // Update statistics
   const updateStats = useCallback((responseTime: number) => {

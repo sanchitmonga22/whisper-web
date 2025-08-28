@@ -56,6 +56,19 @@ export default function ElevenLabsAssistant() {
     }
   };
 
+  // Handle start/stop conversation
+  const handleToggleConversation = async () => {
+    if (conversation.isActive) {
+      conversation.stopConversation();
+    } else {
+      await conversation.startConversation();
+      // Automatically start listening after starting the conversation
+      setTimeout(() => {
+        conversation.startListening();
+      }, 100);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       {/* Metrics Display */}
@@ -108,13 +121,13 @@ export default function ElevenLabsAssistant() {
         </div>
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${
-            conversation.status === 'transcribing' ? 'bg-yellow-500 animate-pulse' : 'bg-slate-600'
+            conversation.status === 'processing-stt' ? 'bg-yellow-500 animate-pulse' : 'bg-slate-600'
           }`}></div>
           <span className="text-xs text-slate-400">Transcribing</span>
         </div>
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${
-            conversation.status === 'thinking' ? 'bg-purple-500 animate-pulse' : 'bg-slate-600'
+            conversation.status === 'processing-llm' ? 'bg-purple-500 animate-pulse' : 'bg-slate-600'
           }`}></div>
           <span className="text-xs text-slate-400">Processing</span>
         </div>
@@ -129,13 +142,7 @@ export default function ElevenLabsAssistant() {
       {/* Main Control */}
       <div className="flex items-center justify-center gap-3">
         <button
-          onClick={() => {
-            if (conversation.isActive) {
-              conversation.stopConversation();
-            } else {
-              conversation.startConversation();
-            }
-          }}
+          onClick={handleToggleConversation}
           disabled={!apiKey || !openaiApiKey}
           className={`
             px-6 py-3 rounded-xl font-medium text-white transition-all duration-200
@@ -231,6 +238,16 @@ export default function ElevenLabsAssistant() {
       {/* Current Interaction Display */}
       {conversation.isActive && (
         <div className="space-y-3">
+          {/* Manual Listen Button - for testing */}
+          {conversation.status === 'idle' && (
+            <button
+              onClick={() => conversation.startListening()}
+              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+            >
+              Start Listening (Press to Speak)
+            </button>
+          )}
+          
           {/* Text Input */}
           <form onSubmit={handleTextSubmit} className="flex gap-2">
             <input

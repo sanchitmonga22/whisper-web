@@ -1,19 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useMoonshineConversation, type MoonshineConversationConfig } from '../hooks/useMoonshineConversation';
 
-interface VoiceAssistantProps {
-  config?: Partial<MoonshineConversationConfig>;
-}
-
-export default function VoiceAssistant({ config = {} }: VoiceAssistantProps) {
+export default function VoiceAssistant() {
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState(localStorage.getItem('voiceai_api_key') || '');
-  const [selectedVoice, setSelectedVoice] = useState(localStorage.getItem('voiceai_voice') || '');
+  const [selectedVoice] = useState(localStorage.getItem('voiceai_voice') || '');
   const [llmModel, setLLMModel] = useState(localStorage.getItem('voiceai_model') || 'gpt-4o');
   const [moonshineModel, setMoonshineModel] = useState<'moonshine-tiny' | 'moonshine-base'>(
     (localStorage.getItem('voiceai_moonshine_model') as any) || 'moonshine-tiny'
   );
-  const [systemPrompt, setSystemPrompt] = useState(
+  const [systemPrompt] = useState(
     localStorage.getItem('voiceai_prompt') || 
     'You are a helpful voice assistant. Keep responses concise and conversational, typically 1-2 sentences unless more detail is specifically requested.'
   );

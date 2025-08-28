@@ -1,21 +1,8 @@
-import { useTranslation } from "react-i18next";
 import VoiceAssistant from "./components/VoiceAssistant";
 import ElevenLabsAssistant from "./components/ElevenLabsAssistant";
 import ThemeToggle from "./components/ThemeToggle";
-import { useEffect, useState } from "react";
 
 function App() {
-    const { i18n } = useTranslation();
-    const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
-
-    const handleChangeLanguage = (newLanguage: string) => {
-        setCurrentLanguage(newLanguage);
-        i18n.changeLanguage(newLanguage);
-    };
-
-    useEffect(() => {
-        setCurrentLanguage(i18n.language);
-    }, [i18n.language]);
 
     return (
         <div className='min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900'>
@@ -69,7 +56,7 @@ function App() {
                                                 RunAnywhere Voice AI
                                             </h2>
                                             <p className='text-xs text-slate-400 mt-1'>
-                                                Local STT (Moonshine) • Cloud LLM • Local TTS
+                                                Local STT (Moonshine) • Cloud LLM • Local TTS (Piper)
                                             </p>
                                         </div>
                                         <div className='flex items-center gap-2'>
