@@ -103,10 +103,11 @@ export default function VoiceAssistant() {
           </div>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-3 border border-blue-500/10">
-          <div className="text-xs font-medium text-red-400 mb-1">Total Pipeline</div>
+          <div className="text-xs font-medium text-red-400 mb-1">Perceived Latency</div>
           <div className="text-lg font-bold text-white">
             {conversation.performance.totalPipelineTime || '--'}ms
           </div>
+          <div className="text-xs text-slate-400 mt-0.5">Speech end → Audio out</div>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-3 border border-blue-500/10">
           <div className="text-xs font-medium text-indigo-400 mb-1">Conversation Turns</div>

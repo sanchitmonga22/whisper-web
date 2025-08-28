@@ -47,6 +47,30 @@ export function useMoonshine(config: MoonshineConfig = {}) {
     transcriptionStartTime: 0,
   });
 
+  // Enhanced WebGPU detection with capability testing
+  const detectOptimalDevice = useCallback(async (preferredDevice?: 'webgpu' | 'wasm'): Promise<'webgpu' | 'wasm'> => {
+    if (preferredDevice === 'wasm') return 'wasm';
+    
+    try {
+      // Check basic WebGPU availability
+      if (!('gpu' in navigator)) return 'wasm';
+      
+      // Test WebGPU adapter availability
+      const adapter = await (navigator as any).gpu.requestAdapter();
+      if (!adapter) return 'wasm';
+      
+      // Test device creation
+      const device = await adapter.requestDevice();
+      if (!device) return 'wasm';
+      
+      console.log('[Moonshine] WebGPU detected and verified');
+      return 'webgpu';
+    } catch (error) {
+      console.warn('[Moonshine] WebGPU detection failed, falling back to WASM:', error);
+      return 'wasm';
+    }
+  }, []);
+
   // Initialize Moonshine STT pipeline
   const initializePipeline = useCallback(async () => {
     if (pipelineRef.current) {
@@ -62,22 +86,44 @@ export function useMoonshine(config: MoonshineConfig = {}) {
         ? 'onnx-community/moonshine-base-ONNX'
         : 'onnx-community/moonshine-tiny-ONNX';
 
-      // Determine device and dtype
-      const device = config.device || ('gpu' in navigator ? 'webgpu' : 'wasm');
-      const dtype = config.quantization === 'q4' ? 'q4' : config.quantization === 'fp32' ? 'fp32' : 'q8';
+      // Enhanced device detection with capability testing
+      let device = await detectOptimalDevice(config.device);
+      // Optimize dtype based on device - use fp16 for WebGPU when available
+      let dtype = device === 'webgpu' && config.quantization !== 'fp32' ? 'fp16' : 
+                  config.quantization === 'q4' ? 'q4' : 
+                  config.quantization === 'fp32' ? 'fp32' : 'q8';
+                   
+      console.log('[Moonshine] Using device:', device, 'with dtype:', dtype);
 
-      // Create pipeline
-      pipelineRef.current = await (pipeline as any)(
-        'automatic-speech-recognition',
-        modelName,
-        {
-          device,
-          dtype: dtype,
-          // Moonshine-specific optimizations
-          chunk_length_s: 5, // Even shorter chunks for better responsiveness
-          stride_length_s: 1,
-        }
-      );
+      // Create pipeline with fallback logic
+      try {
+        pipelineRef.current = await (pipeline as any)(
+          'automatic-speech-recognition',
+          modelName,
+          {
+            device,
+            dtype: dtype,
+            // Moonshine-specific optimizations
+            chunk_length_s: 5, // Even shorter chunks for better responsiveness
+            stride_length_s: 1,
+          }
+        );
+      } catch (error) {
+        console.warn('[Moonshine] Pipeline creation failed with', device, dtype, '- falling back to WASM with q8:', error);
+        // Fallback to WASM with q8
+        device = 'wasm';
+        dtype = 'q8';
+        pipelineRef.current = await (pipeline as any)(
+          'automatic-speech-recognition',
+          modelName,
+          {
+            device,
+            dtype: dtype,
+            chunk_length_s: 5,
+            stride_length_s: 1,
+          }
+        );
+      }
 
       console.log('[Moonshine] STT pipeline initialized', { model: modelName, device });
       
@@ -112,11 +158,11 @@ export function useMoonshine(config: MoonshineConfig = {}) {
       console.log('[Moonshine] Initializing VAD...');
 
       const vadOptions: Partial<RealTimeVADOptions> = {
-        positiveSpeechThreshold: config.vadConfig?.positiveSpeechThreshold ?? 0.5,
-        negativeSpeechThreshold: config.vadConfig?.negativeSpeechThreshold ?? 0.35,
+        positiveSpeechThreshold: config.vadConfig?.positiveSpeechThreshold ?? 0.6,
+        negativeSpeechThreshold: config.vadConfig?.negativeSpeechThreshold ?? 0.4,
         minSpeechFrames: config.vadConfig?.minSpeechFrames ?? 9,
         preSpeechPadFrames: config.vadConfig?.preSpeechPadFrames ?? 3,
-        redemptionFrames: 24,
+        redemptionFrames: 12, // Reduced from 24 to 12 (384ms vs 768ms wait)
         frameSamples: 512, // V5 requirement
         model: 'v5', // Use Silero V5 for better accuracy
 
