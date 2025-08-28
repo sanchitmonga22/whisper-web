@@ -155,7 +155,8 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   const kokoroTTS = useKokoroTTS({
     voice: config.tts.kokoroVoice || 'af_sky',
     model: config.tts.kokoroModel,
-    dtype: config.tts.kokoroDtype,
+    dtype: config.tts.kokoroDtype || 'q8', // Default to q8 for optimal browser performance
+    device: 'auto', // Auto-detect WebGPU or fallback to WASM
     autoInitialize: config.tts.engine === 'kokoro',
   });
   
@@ -398,9 +399,11 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     console.log('[MoonshineConversation] Starting conversation...');
     setState(prev => ({ ...prev, isActive: true, error: null }));
     
-    // Initialize Kokoro TTS if selected
+    // Initialize Kokoro TTS if selected with optimized settings
     if (config.tts.engine === 'kokoro' && !kokoroTTS.isInitialized) {
-      console.log('[MoonshineConversation] Initializing Kokoro TTS...');
+      console.log('[MoonshineConversation] Initializing Kokoro TTS with optimized settings...');
+      // Note: useKokoroTTS hook is already configured with optimized settings
+      // The initialize function will use the config passed to the hook
       await kokoroTTS.initialize();
     }
     

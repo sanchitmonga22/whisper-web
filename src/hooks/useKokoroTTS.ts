@@ -46,12 +46,25 @@ export function useKokoroTTS(config: UseKokoroTTSConfig = {}) {
     isStreaming: false,
   });
 
-  // Initialize audio context
+  // Initialize audio context - delay creation until user interaction
+  const ensureAudioContext = useCallback(() => {
+    if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      console.log('[useKokoroTTS] Created AudioContext, state:', audioContextRef.current.state);
+    }
+    return audioContextRef.current;
+  }, []);
+
+  // Clean up on unmount
   useEffect(() => {
-    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     return () => {
-      if (audioContextRef.current?.state !== 'closed') {
-        audioContextRef.current?.close();
+      // Clean up on unmount only
+      if (currentSourceRef.current) {
+        try {
+          currentSourceRef.current.stop();
+        } catch (e) {
+          // Ignore
+        }
       }
     };
   }, []);
@@ -103,30 +116,73 @@ export function useKokoroTTS(config: UseKokoroTTSConfig = {}) {
 
   // Play audio buffer
   const playAudioBuffer = useCallback(async (audioBuffer: AudioBuffer): Promise<void> => {
-    if (!audioContextRef.current) return;
+    // Ensure we have an audio context
+    const audioContext = ensureAudioContext();
+    if (!audioContext) return;
 
-    return new Promise((resolve) => {
-      const source = audioContextRef.current!.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContextRef.current!.destination);
-      
-      currentSourceRef.current = source;
-      
-      source.onended = () => {
-        currentSourceRef.current = null;
-        resolve();
-      };
-      
-      source.start(0);
+    // Resume audio context if it's suspended (happens on user interaction)
+    if (audioContext.state === 'suspended') {
+      console.log('[useKokoroTTS] Resuming suspended AudioContext');
+      await audioContext.resume();
+      console.log('[useKokoroTTS] AudioContext state after resume:', audioContext.state);
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const audioContext = audioContextRef.current!;
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        
+        // Create a gain node for volume control
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 1.0; // Full volume
+        
+        // Connect source -> gain -> destination
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        console.log('[useKokoroTTS] Audio chain: source -> gain(1.0) -> destination');
+        
+        currentSourceRef.current = source;
+        
+        source.onended = () => {
+          console.log('[useKokoroTTS] Audio source ended');
+          currentSourceRef.current = null;
+          resolve();
+        };
+        
+        // Add error handler
+        source.onerror = (error) => {
+          console.error('[useKokoroTTS] Audio source error:', error);
+          currentSourceRef.current = null;
+          reject(error);
+        };
+        
+        source.start(0);
+        console.log('[useKokoroTTS] Started audio playback, context state:', audioContext.state, 'sample rate:', audioContext.sampleRate);
+      } catch (error) {
+        console.error('[useKokoroTTS] Failed to start audio playback:', error);
+        reject(error);
+      }
     });
-  }, []);
+  }, [ensureAudioContext]);
 
   // Process audio queue
   const processAudioQueue = useCallback(async () => {
-    if (isPlayingRef.current || audioQueueRef.current.length === 0) {
+    if (isPlayingRef.current) {
+      console.log('[useKokoroTTS] Already playing, waiting for current playback to finish');
+      // Wait for current playback to finish before processing next
+      while (isPlayingRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    if (audioQueueRef.current.length === 0) {
+      console.log('[useKokoroTTS] Audio queue is empty');
       return;
     }
 
+    console.log(`[useKokoroTTS] Processing audio queue with ${audioQueueRef.current.length} items`);
     isPlayingRef.current = true;
     setState(prev => ({ ...prev, isSpeaking: true }));
     console.log('[useKokoroTTS] Starting speech playback');
@@ -138,6 +194,10 @@ export function useKokoroTTS(config: UseKokoroTTSConfig = {}) {
     while (audioQueueRef.current.length > 0) {
       const audioBuffer = audioQueueRef.current.shift();
       if (audioBuffer) {
+        // Debug: Check if buffer has actual audio data
+        const channelData = audioBuffer.getChannelData(0);
+        const hasSound = channelData.some(sample => Math.abs(sample) > 0.001);
+        console.log(`[useKokoroTTS] Playing audio buffer (${audioBuffer.duration.toFixed(2)}s, hasSound: ${hasSound}, channels: ${audioBuffer.numberOfChannels}, sampleRate: ${audioBuffer.sampleRate})`);
         if (!firstSpeechTime) {
           firstSpeechTime = performance.now() - startTime;
           setState(prev => ({
@@ -149,7 +209,12 @@ export function useKokoroTTS(config: UseKokoroTTSConfig = {}) {
             }
           }));
         }
-        await playAudioBuffer(audioBuffer);
+        try {
+          await playAudioBuffer(audioBuffer);
+          console.log('[useKokoroTTS] Audio buffer playback completed');
+        } catch (error) {
+          console.error('[useKokoroTTS] Error playing audio buffer:', error);
+        }
       }
     }
 
@@ -184,6 +249,9 @@ export function useKokoroTTS(config: UseKokoroTTSConfig = {}) {
     if (interrupt) {
       stop();
     }
+    
+    // Ensure audio context exists
+    ensureAudioContext();
 
     try {
       setState(prev => ({ ...prev, isGenerating: true, error: null }));
@@ -208,7 +276,7 @@ export function useKokoroTTS(config: UseKokoroTTSConfig = {}) {
       if (audioBuffer) {
         console.log('[useKokoroTTS] AudioBuffer received, queueing for playback');
         audioQueueRef.current.push(audioBuffer);
-        // Wait for audio to finish playing
+        // Process audio queue and wait for it to complete
         await processAudioQueue();
       } else {
         console.error('[useKokoroTTS] No AudioBuffer returned from speak');
