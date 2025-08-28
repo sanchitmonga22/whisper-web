@@ -210,7 +210,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     }
     
     prevTTSStateRef.current.isSpeaking = isSpeaking;
-  }, [tts.isSpeaking, tts.performanceMetrics, moonshine, updateStats]);
+  }, [tts.isSpeaking, tts.performanceMetrics, moonshine.pauseVAD, moonshine.resumeVAD, updateStats]);
 
   // Handle TTS errors
   useEffect(() => {
@@ -221,7 +221,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       }));
       moonshine.resumeVAD();
     }
-  }, [tts.error, moonshine]);
+  }, [tts.error, moonshine.resumeVAD]);
 
   // Speak the response
   const speakResponse = useCallback(async (text: string) => {

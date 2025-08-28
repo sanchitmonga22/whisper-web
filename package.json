@@ -15,6 +15,7 @@
     "@elevenlabs/elevenlabs-js": "^2.12.2",
     "@headlessui/react": "^2.2.6",
     "@huggingface/transformers": "3.7.0",
+    "@mintplex-labs/piper-tts-web": "^1.0.4",
     "@ricky0123/vad-web": "^0.0.24",
     "axios": "^1.11.0",
     "i18next": "^25.3.2",
