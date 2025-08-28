@@ -151,12 +151,8 @@ export function useKokoroTTS(config: UseKokoroTTSConfig = {}) {
           resolve();
         };
         
-        // Add error handler
-        source.onerror = (error) => {
-          console.error('[useKokoroTTS] Audio source error:', error);
-          currentSourceRef.current = null;
-          reject(error);
-        };
+        // Note: AudioBufferSourceNode doesn't have an onerror event
+        // Errors are handled through the promise chain
         
         source.start(0);
         console.log('[useKokoroTTS] Started audio playback, context state:', audioContext.state, 'sample rate:', audioContext.sampleRate);
