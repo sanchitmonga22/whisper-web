@@ -98,6 +98,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   const sttTimesRef = useRef<number[]>([]);
   const lastTTSEndTimeRef = useRef<number>(0);
   const processedSentencesRef = useRef<number>(0);
+  const spokenSentencesRef = useRef<Set<string>>(new Set());
   
   // Average tracking for all pipeline stages
   const vadTimesRef = useRef<number[]>([]);
@@ -157,6 +158,8 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       performanceRef.current.llmFirstTokenTime = 0;
       performanceRef.current.llmStartTime = 0;
       performanceRef.current.sttEndTime = 0;
+      performanceRef.current.pipelineStartTime = 0; // Reset pipeline timing for new turn
+      performanceRef.current.ttsFirstSpeechTime = 0;
       setState(prev => ({ ...prev, isListening: true, isProcessingSTT: true }));
     },
     onSpeechEnd: () => {
@@ -275,13 +278,14 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
         // Track averages for all pipeline stages - only if values are valid
         if (totalPipelineTime > 0 && totalPipelineTime < 30000) { // Reasonable upper bound (30 seconds)
           const currentVadTime = performanceRef.current.speechEndTime - performanceRef.current.speechStartTime;
-          const llmFirstTokenTime = performanceRef.current.llmFirstTokenTime - performanceRef.current.llmStartTime;
+          const llmFirstTokenTime = performanceRef.current.llmFirstTokenTime > 0 ? 
+            performanceRef.current.llmFirstTokenTime - performanceRef.current.llmStartTime : 0;
           
           // Only track valid positive values
           if (currentVadTime > 0 && currentVadTime < 10000) vadTimesRef.current.push(currentVadTime);
           if (llmFirstTokenTime > 0 && llmFirstTokenTime < 10000) llmFirstTokenTimesRef.current.push(llmFirstTokenTime);  
           if (ttsProcessingTime > 0 && ttsProcessingTime < 10000) ttsTimesRef.current.push(ttsProcessingTime);
-          perceivedLatencyTimesRef.current.push(totalPipelineTime);
+          if (totalPipelineTime > 0) perceivedLatencyTimesRef.current.push(totalPipelineTime);
         }
         
         // Keep only last 10 measurements for rolling average
@@ -343,10 +347,9 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
         }
       }));
       
-      // Reset timing for next turn
+      // Reset TTS timing (but NOT pipeline timing - that resets on new speech)
       performanceRef.current.ttsStartTime = 0;
       performanceRef.current.ttsFirstSpeechTime = 0;
-      performanceRef.current.pipelineStartTime = 0;
       
       lastTTSEndTimeRef.current = Date.now();
       // Resume VAD after TTS finishes for both native and Kokoro
@@ -356,30 +359,42 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       }, TTS_COOLDOWN_MS);
 
       // Update stats with the final pipeline time (which includes TTS)
-      const finalPipelineTime = state.performance.totalPipelineTime || 0;
-      if (finalPipelineTime > 0) {
+      const finalPipelineTime = performanceRef.current.ttsEndTime - performanceRef.current.pipelineStartTime;
+      if (finalPipelineTime > 0 && finalPipelineTime < 30000) {
         updateStats(finalPipelineTime);
       }
     }
     
     prevTTSStateRef.current.isSpeaking = isSpeaking;
     prevTTSStateRef.current.isGenerating = isGenerating;
-  }, [tts.isSpeaking, kokoroTTS.isGenerating, moonshine, updateStats, config.tts.engine, state.performance.totalPipelineTime]);
+  }, [tts.isSpeaking, kokoroTTS.isGenerating, moonshine, updateStats, config.tts.engine]);
 
   // Handle TTS errors
   useEffect(() => {
     if (tts.error) {
-      setState(prev => ({
-        ...prev,
-        error: `TTS Error: ${tts.error}`,
-      }));
-      moonshine.resumeVAD();
+      setState(prev => {
+        // Only update if the error is different
+        if (prev.error !== `TTS Error: ${tts.error}`) {
+          moonshine.resumeVAD();
+          return {
+            ...prev,
+            error: `TTS Error: ${tts.error}`,
+          };
+        }
+        return prev;
+      });
     }
   }, [tts.error, moonshine]);
 
   // Speak the response
   const speakResponse = useCallback(async (text: string) => {
     if (!text || text.trim().length === 0) return;
+    
+    // Prevent speaking if already speaking or generating (additional safeguard)
+    if (tts.isSpeaking || (config.tts.engine === 'kokoro' && kokoroTTS.isGenerating)) {
+      console.log('[MoonshineConversation] Skipping TTS - already speaking/generating:', text.substring(0, 50));
+      return;
+    }
     
     // Mark when TTS is requested (right after LLM completion)
     if (!performanceRef.current.ttsStartTime) {
@@ -415,6 +430,10 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
 
   // Handle transcription from Moonshine
   const handleTranscription = useCallback(async (text: string) => {
+    // Clear spoken sentences when a new transcription starts (new conversation turn)
+    spokenSentencesRef.current.clear();
+    processedSentencesRef.current = 0;
+    
     performanceRef.current.sttEndTime = Date.now();
     const sttTime = performanceRef.current.sttEndTime - performanceRef.current.speechEndTime;
     
@@ -477,9 +496,14 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
               if (sentences.length > processedSentencesRef.current) {
                 const newSentence = sentences[processedSentencesRef.current];
                 if (newSentence && newSentence.trim().length > 0) {
-                  console.log('[MoonshineConversation] Early TTS trigger for sentence:', newSentence);
-                  speakResponse(newSentence);
-                  processedSentencesRef.current++;
+                  // Check if this sentence has already been spoken to prevent loops
+                  const sentenceKey = newSentence.trim().toLowerCase();
+                  if (!spokenSentencesRef.current.has(sentenceKey)) {
+                    console.log('[MoonshineConversation] Early TTS trigger for sentence:', newSentence);
+                    spokenSentencesRef.current.add(sentenceKey);
+                    speakResponse(newSentence);
+                    processedSentencesRef.current++;
+                  }
                 }
               }
             }
@@ -517,16 +541,24 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
               const remainingText = sentences.slice(processedSentencesRef.current).join(' ').trim();
               
               if (remainingText.length > 0) {
-                console.log('[MoonshineConversation] Speaking remaining text:', remainingText);
-                speakResponse(remainingText);
+                const remainingKey = remainingText.toLowerCase();
+                if (!spokenSentencesRef.current.has(remainingKey)) {
+                  console.log('[MoonshineConversation] Speaking remaining text:', remainingText);
+                  spokenSentencesRef.current.add(remainingKey);
+                  speakResponse(remainingText);
+                }
               } else if (sentences.length === 0) {
                 // No complete sentences, speak the full text
-                console.log('[MoonshineConversation] No complete sentences, speaking full text');
-                speakResponse(fullText);
+                const fullTextKey = fullText.trim().toLowerCase();
+                if (!spokenSentencesRef.current.has(fullTextKey)) {
+                  console.log('[MoonshineConversation] No complete sentences, speaking full text');
+                  spokenSentencesRef.current.add(fullTextKey);
+                  speakResponse(fullText);
+                }
               }
             }
             
-            // Reset sentence counter for next response
+            // Reset sentence counter for next response (but NOT spoken sentences - they clear when new transcription starts)
             processedSentencesRef.current = 0;
           }
         );
@@ -552,8 +584,9 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       tts_engine: config.tts.engine,
     });
     
-    // Reset sentence processing counter
+    // Reset sentence processing counter and spoken sentences
     processedSentencesRef.current = 0;
+    spokenSentencesRef.current.clear();
     
     // Initialize Kokoro TTS if selected with optimized settings
     if (config.tts.engine === 'kokoro' && !kokoroTTS.isInitialized) {

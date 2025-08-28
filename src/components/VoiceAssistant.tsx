@@ -8,7 +8,7 @@ export default function VoiceAssistant() {
   const [ttsEngine, setTtsEngine] = useState<'native' | 'kokoro'>(
     (localStorage.getItem('voiceai_tts_engine') as any) || 'native'
   );
-  const [selectedVoice] = useState(localStorage.getItem('voiceai_voice') || '');
+  const [selectedVoice, setSelectedVoice] = useState(localStorage.getItem('voiceai_voice') || '');
   const [kokoroVoice, setKokoroVoice] = useState<any>(
     localStorage.getItem('voiceai_kokoro_voice') || 'af_sky'
   );
@@ -76,7 +76,7 @@ export default function VoiceAssistant() {
         <div className="bg-slate-800/50 rounded-lg p-3 border border-blue-500/10">
           <div className="text-xs font-medium text-blue-400 mb-1">VAD Detection</div>
           <div className="text-lg font-bold text-white">
-            {conversation.performance.vadDetectionTime ? `${(conversation.performance.vadDetectionTime / 1000).toFixed(1)}s` : '--'}
+            {conversation.performance.vadDetectionTime > 0 ? `${(conversation.performance.vadDetectionTime / 1000).toFixed(1)}s` : '0.0s'}
           </div>
           {conversation.stats.avgVADTime > 0 && (
             <div className="text-xs text-slate-400 mt-0.5">
@@ -89,7 +89,7 @@ export default function VoiceAssistant() {
         <div className="bg-slate-800/50 rounded-lg p-3 border border-green-500/10">
           <div className="text-xs font-medium text-green-400 mb-1">STT Processing</div>
           <div className="text-lg font-bold text-white">
-            {conversation.performance.sttProcessingTime || '--'}ms
+            {conversation.performance.sttProcessingTime > 0 ? `${conversation.performance.sttProcessingTime}ms` : '0ms'}
           </div>
           {conversation.stats.avgSTTTime > 0 && (
             <div className="text-xs text-slate-400 mt-0.5">
@@ -102,7 +102,7 @@ export default function VoiceAssistant() {
         <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
           <div className="text-xs font-medium text-purple-400 mb-1">LLM First Token</div>
           <div className="text-lg font-bold text-white">
-            {conversation.performance.llmFirstTokenTime || '--'}ms
+            {conversation.performance.llmFirstTokenTime > 0 ? `${conversation.performance.llmFirstTokenTime}ms` : '0ms'}
           </div>
           {conversation.stats.avgLLMFirstTokenTime > 0 && (
             <div className="text-xs text-slate-400 mt-0.5">
@@ -117,7 +117,7 @@ export default function VoiceAssistant() {
             TTS ({conversation.tts?.engine === 'kokoro' ? 'Kokoro' : 'Native'})
           </div>
           <div className="text-lg font-bold text-white">
-            {conversation.performance?.ttsFirstSpeechTime || '--'}ms
+            {conversation.performance?.ttsFirstSpeechTime > 0 ? `${conversation.performance.ttsFirstSpeechTime}ms` : '0ms'}
           </div>
           {conversation.stats.avgTTSTime > 0 && (
             <div className="text-xs text-slate-400 mt-0.5">
@@ -130,7 +130,7 @@ export default function VoiceAssistant() {
         <div className="bg-slate-800/50 rounded-lg p-3 border border-red-500/10">
           <div className="text-xs font-medium text-red-400 mb-1">Perceived Latency</div>
           <div className="text-lg font-bold text-white">
-            {conversation.performance.totalPipelineTime || '--'}ms
+            {conversation.performance.totalPipelineTime > 0 ? `${conversation.performance.totalPipelineTime}ms` : '0ms'}
           </div>
           {conversation.stats.avgPerceivedLatency > 0 && (
             <div className="text-xs text-slate-400 mt-0.5">
@@ -147,7 +147,7 @@ export default function VoiceAssistant() {
             {conversation.stats.totalTurns || 0} turns
           </div>
           <div className="text-xs text-slate-400 mt-0.5">
-            LLM Complete: {conversation.performance.llmCompletionTime || '--'}ms
+            LLM Complete: {conversation.performance.llmCompletionTime > 0 ? `${conversation.performance.llmCompletionTime}ms` : '0ms'}
           </div>
         </div>
       </div>
@@ -281,11 +281,11 @@ export default function VoiceAssistant() {
                 </select>
               </div>
 
-              {ttsEngine === 'kokoro' && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">
-                    Kokoro Voice
-                  </label>
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  {ttsEngine === 'kokoro' ? 'Kokoro Voice' : 'Browser Voice'}
+                </label>
+                {ttsEngine === 'kokoro' ? (
                   <select
                     value={kokoroVoice}
                     onChange={(e) => setKokoroVoice(e.target.value)}
@@ -316,8 +316,25 @@ export default function VoiceAssistant() {
                       <option value="bm_fable">Fable</option>
                     </optgroup>
                   </select>
-                </div>
-              )}
+                ) : (
+                  <select
+                    value={selectedVoice}
+                    onChange={(e) => setSelectedVoice(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                  >
+                    <option value="">System Default</option>
+                    {typeof window !== 'undefined' && 'speechSynthesis' in window && 
+                      window.speechSynthesis.getVoices()
+                        .filter(voice => voice.lang.startsWith('en'))
+                        .map(voice => (
+                          <option key={voice.name} value={voice.name}>
+                            {voice.name} ({voice.lang})
+                          </option>
+                        ))
+                    }
+                  </select>
+                )}
+              </div>
             </div>
           </div>
         </div>
