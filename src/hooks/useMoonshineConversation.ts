@@ -88,7 +88,16 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   const responseTimesRef = useRef<number[]>([]);
   const sttTimesRef = useRef<number[]>([]);
   const lastTTSEndTimeRef = useRef<number>(0);
+  const processedSentencesRef = useRef<number>(0);
   const TTS_COOLDOWN_MS = 300;
+
+  // Extract complete sentences from text for streaming TTS
+  const extractCompleteSentences = useCallback((text: string): string[] => {
+    // Match sentences ending with .!? followed by space or end of string
+    const sentencePattern = /[^.!?]*[.!?]+(?:\s|$)/g;
+    const matches = text.match(sentencePattern);
+    return matches ? matches.map(s => s.trim()).filter(s => s.length > 0) : [];
+  }, []);
 
   // Performance tracking refs
   // 
@@ -402,6 +411,20 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
                 }
               }));
             }
+
+            // Early TTS triggering on sentence boundaries
+            if (config.autoSpeak !== false) {
+              const sentences = extractCompleteSentences(fullResponse);
+              if (sentences.length > processedSentencesRef.current) {
+                const newSentence = sentences[processedSentencesRef.current];
+                if (newSentence && newSentence.trim().length > 0) {
+                  console.log('[MoonshineConversation] Early TTS trigger for sentence:', newSentence);
+                  speakResponse(newSentence);
+                  processedSentencesRef.current++;
+                }
+              }
+            }
+
             setState(prev => ({
               ...prev,
               currentAssistantResponse: fullResponse,
@@ -430,9 +453,22 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
             }));
 
             if (config.autoSpeak !== false) {
-              console.log('[MoonshineConversation] LLM Complete, calling speakResponse at:', Date.now());
-              speakResponse(fullText);
+              // Speak any remaining text that wasn't processed as complete sentences
+              const sentences = extractCompleteSentences(fullText);
+              const remainingText = sentences.slice(processedSentencesRef.current).join(' ').trim();
+              
+              if (remainingText.length > 0) {
+                console.log('[MoonshineConversation] Speaking remaining text:', remainingText);
+                speakResponse(remainingText);
+              } else if (sentences.length === 0) {
+                // No complete sentences, speak the full text
+                console.log('[MoonshineConversation] No complete sentences, speaking full text');
+                speakResponse(fullText);
+              }
             }
+            
+            // Reset sentence counter for next response
+            processedSentencesRef.current = 0;
           }
         );
       } catch (error) {
@@ -451,6 +487,9 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     console.log('[MoonshineConversation] 🟢 Starting conversation...');
     console.log('[MoonshineConversation] Current state before start:', { isActive: state.isActive, moonshine: { isInitialized: moonshine.isInitialized, isListening: moonshine.isListening } });
     setState(prev => ({ ...prev, isActive: true, error: null }));
+    
+    // Reset sentence processing counter
+    processedSentencesRef.current = 0;
     
     // Initialize Kokoro TTS if selected with optimized settings
     if (config.tts.engine === 'kokoro' && !kokoroTTS.isInitialized) {
