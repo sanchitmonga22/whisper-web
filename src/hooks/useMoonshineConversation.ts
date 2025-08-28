@@ -1,7 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMoonshine, type MoonshineConfig } from './useMoonshine';
 import { useLLMStreaming, type LLMConfig } from './useLLMStreaming';
-import { useTTSWithPiper, type TTSConfig } from './useTTSWithPiper';
+import { useSystemTTS } from './useSystemTTS';
+
+export interface TTSConfig {
+  rate?: number;
+  pitch?: number;
+  volume?: number;
+  voice?: string;
+}
 
 export interface MoonshineConversationConfig {
   llm: LLMConfig;
@@ -135,12 +142,8 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   // Initialize LLM
   const llm = useLLMStreaming(config.llm);
 
-  // Initialize TTS with Piper as default
-  const tts = useTTSWithPiper({
-    ...config.tts,
-    engine: 'piper', // Use Piper by default
-    piperVoiceId: 'en_US-hfc_female-medium',
-  });
+  // Initialize TTS with system TTS
+  const tts = useSystemTTS(config.tts);
 
   // Update statistics
   const updateStats = useCallback((responseTime: number) => {
@@ -175,12 +178,12 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       setState(prev => ({ ...prev, isSpeaking: true }));
       moonshine.pauseVAD();
       
-      // Track first speech time if available
-      if (tts.performanceMetrics?.firstSpeechTime && !performanceRef.current.ttsFirstSpeechTime) {
-        performanceRef.current.ttsFirstSpeechTime = tts.performanceMetrics.firstSpeechTime;
+      // Track first speech time
+      if (!performanceRef.current.ttsFirstSpeechTime) {
+        performanceRef.current.ttsFirstSpeechTime = Date.now();
         setState(prev => ({
           ...prev,
-          performance: { ...prev.performance, ttsFirstSpeechTime: tts.performanceMetrics!.firstSpeechTime }
+          performance: { ...prev.performance, ttsFirstSpeechTime: Date.now() - performanceRef.current.ttsStartTime }
         }));
       }
     }
@@ -210,7 +213,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     }
     
     prevTTSStateRef.current.isSpeaking = isSpeaking;
-  }, [tts.isSpeaking, tts.performanceMetrics, moonshine, updateStats]);
+  }, [tts.isSpeaking, moonshine, updateStats]);
 
   // Handle TTS errors
   useEffect(() => {
