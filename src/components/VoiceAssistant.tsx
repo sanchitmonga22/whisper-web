@@ -102,7 +102,9 @@ export default function VoiceAssistant() {
         <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
           <div className="text-xs font-medium text-purple-400 mb-1">LLM First Token</div>
           <div className="text-lg font-bold text-white">
-            {conversation.performance.llmFirstTokenTime > 0 ? `${conversation.performance.llmFirstTokenTime}ms` : '0ms'}
+            {conversation.performance.llmFirstTokenTime > 0 && conversation.performance.llmFirstTokenTime < 30000 
+              ? `${conversation.performance.llmFirstTokenTime}ms` 
+              : '--ms'}
           </div>
           {conversation.stats.avgLLMFirstTokenTime > 0 && (
             <div className="text-xs text-slate-400 mt-0.5">

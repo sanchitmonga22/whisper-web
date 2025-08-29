@@ -488,7 +488,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
           text,
           // onChunk callback
           (token: string, fullResponse: string) => {
-            if (!performanceRef.current.llmFirstTokenTime && token) {
+            if (!performanceRef.current.llmFirstTokenTime && token && performanceRef.current.llmStartTime > 0) {
               performanceRef.current.llmFirstTokenTime = Date.now();
               const firstTokenTime = performanceRef.current.llmFirstTokenTime - performanceRef.current.llmStartTime;
               

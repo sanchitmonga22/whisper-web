@@ -54,6 +54,7 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
     sttStart: number;
     llmStart: number;
     ttsStart: number;
+    ttsRequestStartTime?: number;
     lastMetrics: {
       sttLatency: number;
       llmLatency: number;
@@ -183,15 +184,11 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
 
       const ttsStartTime = Date.now();
       const audioBuffer = await service.textToSpeech(text, config.voiceId || undefined);
-      const ttsLatency = Date.now() - ttsStartTime;
-      performanceRef.current.lastMetrics.ttsLatency = ttsLatency;
-      // Note: We track TTS internally but don't report it as ElevenLabs handles everything
-      // Update TTS average for internal use only
-      const metrics = performanceRef.current.lastMetrics;
-      metrics.ttsCount++;
-      metrics.avgTtsLatency = Math.round((metrics.avgTtsLatency * (metrics.ttsCount - 1) + ttsLatency) / metrics.ttsCount);
+      const ttsApiLatency = Date.now() - ttsStartTime;
+      // Store TTS start time for measuring time to first audio playback
+      performanceRef.current.ttsRequestStartTime = ttsStartTime;
       
-      console.log('[useElevenLabsConversation] TTS completed in', ttsLatency, 'ms');
+      console.log('[useElevenLabsConversation] TTS API response in', ttsApiLatency, 'ms');
       console.log('[useElevenLabsConversation] Audio buffer received:', {
         bufferType: typeof audioBuffer,
         bufferSize: audioBuffer?.byteLength || 0,
@@ -235,6 +232,19 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       audio.onplaying = () => {
         const audioStartTime = Date.now();
         console.log('[ElevenLabsConversation] Audio actually started playing');
+        
+        // Calculate actual TTS latency (from request to first audio playback)
+        if (performanceRef.current.ttsRequestStartTime) {
+          const ttsLatency = audioStartTime - performanceRef.current.ttsRequestStartTime;
+          performanceRef.current.lastMetrics.ttsLatency = ttsLatency;
+          
+          // Update TTS average
+          const metrics = performanceRef.current.lastMetrics;
+          metrics.ttsCount++;
+          metrics.avgTtsLatency = Math.round((metrics.avgTtsLatency * (metrics.ttsCount - 1) + ttsLatency) / metrics.ttsCount);
+          
+          console.log('[useElevenLabsConversation] TTS latency (request to audio start):', ttsLatency, 'ms');
+        }
         
         // Calculate perceived latency when audio ACTUALLY starts playing
         if (performanceRef.current.conversationStart > 0) {
