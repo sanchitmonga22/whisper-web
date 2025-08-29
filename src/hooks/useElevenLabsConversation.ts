@@ -95,7 +95,7 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
   const analyserRef = useRef<AnalyserNode | null>(null);
   const isRecordingRef = useRef<boolean>(false);
   const SILENCE_THRESHOLD = 25; // dB threshold for silence detection (lowered for better sensitivity)
-  const SILENCE_DURATION = 1000; // ms of silence before stopping recording (reduced for faster response)
+  const SILENCE_DURATION = 384; // ms of silence before stopping recording (matched to RunAnywhere/Moonshine for fair comparison)
 
   // Initialize service when API key changes
   useEffect(() => {
@@ -231,30 +231,50 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
         handleError('Failed to play audio response');
       };
       
-      await audio.play();
+      // Set up event to capture when audio actually starts playing
+      audio.onplaying = () => {
+        const audioStartTime = Date.now();
+        console.log('[ElevenLabsConversation] Audio actually started playing');
+        
+        // Calculate perceived latency when audio ACTUALLY starts playing
+        if (performanceRef.current.conversationStart > 0) {
+          const perceivedLatency = audioStartTime - performanceRef.current.conversationStart;
+          performanceRef.current.lastMetrics.totalLatency = perceivedLatency;
+          
+          // Detailed timing log
+          console.log('[ElevenLabsConversation] Detailed timing:', {
+            conversationStart: performanceRef.current.conversationStart,
+            audioStartTime: audioStartTime,
+            perceivedLatency: perceivedLatency,
+            breakdown: {
+              stt: performanceRef.current.lastMetrics.sttLatency,
+              llm: performanceRef.current.lastMetrics.llmLatency,
+              tts: performanceRef.current.lastMetrics.ttsLatency,
+              total: perceivedLatency
+            }
+          });
+          
+          // Update average
+          const totalMetrics = performanceRef.current.lastMetrics;
+          totalMetrics.totalCount++;
+          totalMetrics.avgTotalLatency = Math.round((totalMetrics.avgTotalLatency * (totalMetrics.totalCount - 1) + perceivedLatency) / totalMetrics.totalCount);
+          
+          // Track analytics
+          trackPerformanceMetric('total_pipeline_time', perceivedLatency, 'elevenlabs');
+          trackVoiceComparison('elevenlabs', {
+            totalLatency: perceivedLatency,
+            perceivedLatency: perceivedLatency,
+          });
+          
+          console.log('[useElevenLabsConversation] Perceived latency (speech end → audio start):', perceivedLatency, 'ms');
+          
+          // Reset for next turn
+          performanceRef.current.conversationStart = 0;
+        }
+      };
       
-      // Calculate perceived latency when audio starts playing
-      if (performanceRef.current.conversationStart > 0) {
-        const perceivedLatency = Date.now() - performanceRef.current.conversationStart;
-        performanceRef.current.lastMetrics.totalLatency = perceivedLatency;
-        
-        // Update average
-        const totalMetrics = performanceRef.current.lastMetrics;
-        totalMetrics.totalCount++;
-        totalMetrics.avgTotalLatency = Math.round((totalMetrics.avgTotalLatency * (totalMetrics.totalCount - 1) + perceivedLatency) / totalMetrics.totalCount);
-        
-        // Track analytics
-        trackPerformanceMetric('total_pipeline_time', perceivedLatency, 'elevenlabs');
-        trackVoiceComparison('elevenlabs', {
-          totalLatency: perceivedLatency,
-          perceivedLatency: perceivedLatency,
-        });
-        
-        console.log('[useElevenLabsConversation] Perceived latency (speech end → audio start):', perceivedLatency, 'ms');
-        
-        // Reset for next turn
-        performanceRef.current.conversationStart = 0;
-      }
+      // Start playback
+      await audio.play();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';
       console.error('[useElevenLabsConversation] TTS Error:', errorMsg);
@@ -292,7 +312,7 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       });
 
       const completion = await openai.chat.completions.create({
-        model: config.openaiModel || 'gpt-3.5-turbo',
+        model: config.openaiModel || 'gpt-4o-mini',
         messages: [
           {
             role: 'system',

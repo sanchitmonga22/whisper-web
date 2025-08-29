@@ -12,7 +12,7 @@ export default function VoiceAssistant() {
   const [kokoroVoice, setKokoroVoice] = useState<any>(
     localStorage.getItem('voiceai_kokoro_voice') || 'af_sky'
   );
-  const [llmModel, setLLMModel] = useState(localStorage.getItem('voiceai_model') || 'gpt-4o');
+  const [llmModel, setLLMModel] = useState(localStorage.getItem('voiceai_model') || 'gpt-4o-mini');
   const [moonshineModel, setMoonshineModel] = useState<'moonshine-tiny' | 'moonshine-base'>(
     (localStorage.getItem('voiceai_moonshine_model') as any) || 'moonshine-tiny'
   );
@@ -235,35 +235,18 @@ export default function VoiceAssistant() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">
-                  LLM Model
-                </label>
-                <select
-                  value={llmModel}
-                  onChange={(e) => setLLMModel(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
-                >
-                  <option value="gpt-4o">GPT-4o</option>
-                  <option value="gpt-4o-mini">GPT-4o Mini</option>
-                  <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">
-                  Moonshine Model
-                </label>
-                <select
-                  value={moonshineModel}
-                  onChange={(e) => setMoonshineModel(e.target.value as any)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
-                >
-                  <option value="moonshine-tiny">Tiny (Fast)</option>
-                  <option value="moonshine-base">Base (Accurate)</option>
-                </select>
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">
+                Moonshine Model
+              </label>
+              <select
+                value={moonshineModel}
+                onChange={(e) => setMoonshineModel(e.target.value as any)}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+              >
+                <option value="moonshine-tiny">Tiny (Fast)</option>
+                <option value="moonshine-base">Base (Accurate)</option>
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

@@ -189,6 +189,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     model: config.tts.kokoroModel,
     dtype: config.tts.kokoroDtype || 'q8', // Default to q8 for optimal browser performance
     device: 'auto', // Auto-detect WebGPU or fallback to WASM
+    speed: 1.15,  // Slightly faster speech rate to match ElevenLabs
     autoInitialize: config.tts.engine === 'kokoro',
   });
   

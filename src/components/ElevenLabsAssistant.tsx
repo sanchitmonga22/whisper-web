@@ -84,8 +84,38 @@ export default function ElevenLabsAssistant() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Metrics Display - Simplified for ElevenLabs */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* Metrics Display - Full pipeline metrics for ElevenLabs */}
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
+          <div className="text-xs font-medium text-yellow-400 mb-1">STT Processing</div>
+          <div className="text-lg font-bold text-white">
+            {conversation.metrics?.sttLatency ? `${conversation.metrics.sttLatency}ms` : '--ms'}
+          </div>
+          <div className="text-xs text-slate-400 mt-1">
+            Avg: {conversation.metrics?.avgSttLatency ? `${conversation.metrics.avgSttLatency}ms` : '--ms'}
+          </div>
+        </div>
+        <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
+          <div className="text-xs font-medium text-blue-400 mb-1">LLM Processing</div>
+          <div className="text-lg font-bold text-white">
+            {conversation.metrics?.llmLatency ? `${conversation.metrics.llmLatency}ms` : '--ms'}
+          </div>
+          <div className="text-xs text-slate-400 mt-1">
+            Avg: {conversation.metrics?.avgLlmLatency ? `${conversation.metrics.avgLlmLatency}ms` : '--ms'}
+          </div>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
+          <div className="text-xs font-medium text-green-400 mb-1">TTS Processing</div>
+          <div className="text-lg font-bold text-white">
+            {conversation.metrics?.ttsLatency ? `${conversation.metrics.ttsLatency}ms` : '--ms'}
+          </div>
+          <div className="text-xs text-slate-400 mt-1">
+            Avg: {conversation.metrics?.avgTtsLatency ? `${conversation.metrics.avgTtsLatency}ms` : '--ms'}
+          </div>
+        </div>
         <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
           <div className="text-xs font-medium text-orange-400 mb-1">Perceived Latency</div>
           <div className="text-lg font-bold text-white">
@@ -93,8 +123,12 @@ export default function ElevenLabsAssistant() {
           </div>
           <div className="text-xs text-slate-400 mt-1">
             Avg: {conversation.metrics?.avgTotalLatency ? `${conversation.metrics.avgTotalLatency}ms` : '--ms'}
+            <br />Speech end → Audio out
           </div>
         </div>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-3">
         <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
           <div className="text-xs font-medium text-red-400 mb-1">API Status</div>
           <div className="text-lg font-bold text-white capitalize">
