@@ -1,153 +1,138 @@
-import { useTranslation } from "react-i18next";
-import LanguageSelector from "./components/LanguageSelector";
+import { useEffect } from "react";
 import VoiceAssistant from "./components/VoiceAssistant";
 import ElevenLabsAssistant from "./components/ElevenLabsAssistant";
 import ThemeToggle from "./components/ThemeToggle";
-import { useEffect, useState } from "react";
+import { trackDemoInteraction, trackFeatureUsage } from "./utils/analytics";
 
 function App() {
-
-    const { i18n } = useTranslation();
-    const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
-    const [mode, setMode] = useState<'assistant' | 'elevenlabs'>('elevenlabs');
-
-    const handleChangeLanguage = (newLanguage: string) => {
-        setCurrentLanguage(newLanguage);
-        i18n.changeLanguage(newLanguage);
-    };
-
+    // Track page load
     useEffect(() => {
-        setCurrentLanguage(i18n.language);
-    }, [i18n.language]);
+        trackDemoInteraction('page_loaded');
+        trackFeatureUsage('voice_demo_access');
+    }, []);
 
     return (
-        <>
-        <ThemeToggle />
-        <div className='flex flex-col min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 transition-all'>
+        <div className='min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900'>
+            {/* Experimental Notice Banner */}
+            <div className='bg-yellow-500/10 border-b border-yellow-500/20 py-2 px-4 text-center'>
+                <p className='text-xs text-yellow-400'>
+                    ⚠️ <strong>Experimental Feature:</strong> This voice pipeline is under active development. 
+                    Features and performance metrics may change frequently as we optimize the system.
+                </p>
+            </div>
+            
+            {/* Subtle gradient overlay */}
+            <div className='absolute inset-0 bg-gradient-to-t from-blue-600/5 via-transparent to-purple-600/5 pointer-events-none' />
+            
             {/* Header */}
-            <header className='w-full py-8 px-6'>
-                <div className='max-w-6xl mx-auto'>
-                    <div className='text-center'>
-                        <h1 className='text-4xl md:text-6xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent'>
-                            WhisperWeb
-                        </h1>
-                        <p className='mt-3 text-lg md:text-xl text-slate-600 dark:text-slate-300'>
-                            Transcribe speech directly in your browser
-                        </p>
+            <header className='relative z-10 w-full py-6 px-6 border-b border-blue-500/10'>
+                <div className='max-w-[1600px] mx-auto flex items-center justify-between'>
+                    <div className='flex items-center gap-3'>
+                        {/* RunAnywhere Logo */}
+                        <div className='w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center'>
+                            <svg className='w-6 h-6 text-white' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M13 10V3L4 14h7v7l9-11h-7z' />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 className='text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent'>
+                                RunAnywhere Voice Pipeline
+                                <span className='ml-2 text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full align-middle'>
+                                    EXPERIMENTAL
+                                </span>
+                            </h1>
+                            <p className='text-xs text-slate-400 mt-0.5'>Compare AI Voice Solutions in Real-Time • Features under active development</p>
+                        </div>
+                    </div>
+                    <div className='flex items-center gap-4'>
+                        <a 
+                            href="https://runanywhere.ai" 
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='text-xs text-slate-400 hover:text-blue-400 transition-colors'
+                            onClick={() => trackDemoInteraction('external_link_click', { destination: 'runanywhere.ai' })}
+                        >
+                            runanywhere.ai →
+                        </a>
+                        <ThemeToggle />
                     </div>
                 </div>
             </header>
 
-            {/* Main Content */}
-            <main className='flex-1 flex items-center justify-center px-6 py-8'>
-                <div className='w-full max-w-4xl'>
-                    {/* Mode Selection Cards */}
-                    <div className='grid md:grid-cols-2 gap-6 mb-8'>
-                        <button
-                            onClick={() => setMode('assistant')}
-                            className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 ${
-                                mode === 'assistant'
-                                    ? 'border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 shadow-lg scale-105'
-                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-green-400 hover:shadow-md'
-                            }`}
-                        >
-                            <div className='flex flex-col items-center space-y-3'>
-                                <div className={`text-5xl ${mode === 'assistant' ? 'animate-pulse' : ''}`}>
-                                    🤖
+            {/* Main Content - Split View */}
+            <main className='relative z-10 flex-1 p-6'>
+                <div className='max-w-[1600px] mx-auto'>
+                    <div className='grid lg:grid-cols-2 gap-6 h-[calc(100vh-140px)]'>
+                        {/* Left Side - RunAnywhere Voice AI */}
+                        <div className='flex flex-col'>
+                            <div className='bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-xl rounded-2xl border border-blue-500/20 overflow-hidden flex flex-col h-full'>
+                                {/* Section Header */}
+                                <div className='bg-gradient-to-r from-blue-600/10 to-purple-600/10 px-6 py-4 border-b border-blue-500/20'>
+                                    <div className='flex items-center justify-between'>
+                                        <div>
+                                            <h2 className='text-lg font-semibold text-white flex items-center gap-2'>
+                                                <span className='w-2 h-2 bg-blue-500 rounded-full animate-pulse' />
+                                                RunAnywhere Voice AI
+                                            </h2>
+                                            <p className='text-xs text-slate-400 mt-1'>
+                                                Local STT (Moonshine) • Cloud LLM • Local TTS (Piper)
+                                            </p>
+                                        </div>
+                                        <div className='flex items-center gap-2'>
+                                            <span className='px-2 py-1 text-xs font-medium text-blue-400 bg-blue-500/10 rounded-full'>
+                                                On-Device AI
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <h3 className='text-xl font-semibold text-slate-900 dark:text-slate-100'>
-                                    Voice Assistant
-                                </h3>
-                                <p className='text-sm text-center text-slate-600 dark:text-slate-400'>
-                                    Local VAD + STT • Cloud LLM • Local TTS
-                                </p>
-                                <div className={`absolute top-3 right-3 w-3 h-3 rounded-full ${
-                                    mode === 'assistant' ? 'bg-green-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-600'
-                                }`} />
+                                
+                                {/* Component Container */}
+                                <div className='flex-1 p-6 overflow-auto'>
+                                    <VoiceAssistant />
+                                </div>
                             </div>
-                        </button>
+                        </div>
 
-                        <button
-                            onClick={() => setMode('elevenlabs')}
-                            className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 ${
-                                mode === 'elevenlabs'
-                                    ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 shadow-lg scale-105'
-                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-purple-400 hover:shadow-md'
-                            }`}
-                        >
-                            <div className='flex flex-col items-center space-y-3'>
-                                <div className={`text-5xl ${mode === 'elevenlabs' ? 'animate-pulse' : ''}`}>
-                                    🎙️
+                        {/* Right Side - ElevenLabs */}
+                        <div className='flex flex-col'>
+                            <div className='bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-xl rounded-2xl border border-purple-500/20 overflow-hidden flex flex-col h-full'>
+                                {/* Section Header */}
+                                <div className='bg-gradient-to-r from-purple-600/10 to-pink-600/10 px-6 py-4 border-b border-purple-500/20'>
+                                    <div className='flex items-center justify-between'>
+                                        <div>
+                                            <h2 className='text-lg font-semibold text-white flex items-center gap-2'>
+                                                <span className='w-2 h-2 bg-purple-500 rounded-full animate-pulse' />
+                                                ElevenLabs AI
+                                            </h2>
+                                            <p className='text-xs text-slate-400 mt-1'>
+                                                Cloud-Based Conversational AI
+                                            </p>
+                                        </div>
+                                        <div className='flex items-center gap-2'>
+                                            <span className='px-2 py-1 text-xs font-medium text-purple-400 bg-purple-500/10 rounded-full'>
+                                                Cloud API
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <h3 className='text-xl font-semibold text-slate-900 dark:text-slate-100'>
-                                    ElevenLabs AI
-                                </h3>
-                                <p className='text-sm text-center text-slate-600 dark:text-slate-400'>
-                                    Advanced conversational AI with natural voices
-                                </p>
-                                <div className={`absolute top-3 right-3 w-3 h-3 rounded-full ${
-                                    mode === 'elevenlabs' ? 'bg-purple-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-600'
-                                }`} />
+                                
+                                {/* Component Container */}
+                                <div className='flex-1 p-6 overflow-auto'>
+                                    <ElevenLabsAssistant />
+                                </div>
                             </div>
-                        </button>
+                        </div>
                     </div>
 
-                    {/* Active Component */}
-                    <div className='bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 md:p-8'>
-                        {mode === 'elevenlabs' ? (
-                            <ElevenLabsAssistant />
-                        ) : (
-                            <VoiceAssistant />
-                        )}
+                    {/* Footer Info */}
+                    <div className='mt-6 text-center'>
+                        <p className='text-xs text-slate-500'>
+                            Compare latency, accuracy, and user experience between on-device and cloud solutions
+                        </p>
                     </div>
                 </div>
             </main>
-
-            {/* Footer */}
-            <footer className='w-full py-6 px-6 border-t border-slate-200 dark:border-slate-700'>
-                <div className='max-w-6xl mx-auto text-center'>
-                    <p className='text-sm font-medium text-slate-600 dark:text-slate-400'>
-                        The transcription is performed locally on your device. Your data remains private.
-                    </p>
-                    <div className='mt-3 text-sm text-slate-500 dark:text-slate-500'>
-                        Created by{' '}
-                        <a 
-                            href="https://github.com/RunanywhereAI/runanywhere-sdks" 
-                            className='font-semibold text-blue-600 dark:text-blue-400 hover:underline'
-                            target='_blank'
-                            rel='noopener noreferrer'
-                        >
-                            Runanywhere Team
-                        </a>
-                        <span className='mx-2'>•</span>
-                        Based on work by{' '}
-                        <a 
-                            href="https://github.com/PierreMesure/whisper-web" 
-                            className='font-medium text-blue-600 dark:text-blue-400 hover:underline'
-                            target='_blank'
-                            rel='noopener noreferrer'
-                        >
-                            Pierre Mesure
-                        </a>
-                        {' & '}
-                        <a 
-                            href="https://github.com/Xenova/whisper-web" 
-                            className='font-medium text-blue-600 dark:text-blue-400 hover:underline'
-                            target='_blank'
-                            rel='noopener noreferrer'
-                        >
-                            Xenova
-                        </a>
-                    </div>
-                </div>
-            </footer>
         </div>
-        <LanguageSelector
-            className='fixed bottom-6 right-6 z-50'
-            currentLanguage={currentLanguage}
-            onChangeLanguage={handleChangeLanguage}
-        />
-        </>
     );
 }
 
