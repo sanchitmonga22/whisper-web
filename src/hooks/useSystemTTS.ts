@@ -30,7 +30,8 @@ export const useSystemTTS = (options: UseSystemTTSOptions = {}) => {
     }
   }, []);
 
-  const speak = useCallback(async (text: string): Promise<void> => {
+  // Speak text immediately (internal function)
+  const speakImmediate = useCallback(async (text: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       try {
         if (!isInitialized) {
@@ -41,9 +42,6 @@ export const useSystemTTS = (options: UseSystemTTSOptions = {}) => {
           reject(new Error('Speech synthesis not supported'));
           return;
         }
-
-        // Cancel any ongoing speech
-        window.speechSynthesis.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
         
@@ -95,11 +93,42 @@ export const useSystemTTS = (options: UseSystemTTSOptions = {}) => {
     });
   }, [isInitialized, initialize, options]);
 
+  // Process the speech queue
+  const processQueue = useCallback(async () => {
+    if (isProcessingQueueRef.current || speechQueueRef.current.length === 0) {
+      return;
+    }
+
+    isProcessingQueueRef.current = true;
+    
+    while (speechQueueRef.current.length > 0) {
+      const text = speechQueueRef.current.shift();
+      if (!text) continue;
+      
+      try {
+        await speakImmediate(text);
+      } catch (error) {
+        console.error('[useSystemTTS] Error processing speech queue:', error);
+      }
+    }
+    
+    isProcessingQueueRef.current = false;
+  }, [speakImmediate]);
+
+  // Public speak function that queues text
+  const speak = useCallback(async (text: string): Promise<void> => {
+    speechQueueRef.current.push(text);
+    await processQueue();
+  }, [processQueue]);
+
   const stop = useCallback(() => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
     }
+    // Clear the queue
+    speechQueueRef.current = [];
+    isProcessingQueueRef.current = false;
   }, []);
 
   const getVoices = useCallback((): SpeechSynthesisVoice[] => {

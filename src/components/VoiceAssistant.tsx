@@ -7,7 +7,9 @@ export default function VoiceAssistant() {
   const DEFAULT_OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
   const [apiKey, setApiKey] = useState(localStorage.getItem('voiceai_api_key') || DEFAULT_OPENAI_KEY);
   // Use Kokoro TTS by default, but allow user to change it
-  const [ttsEngine, setTtsEngine] = useState<'native' | 'kokoro'>('kokoro');
+  const [ttsEngine, setTtsEngine] = useState<'native' | 'kokoro'>(
+    (localStorage.getItem('voiceai_tts_engine') as 'native' | 'kokoro') || 'kokoro'
+  );
   const [selectedVoice, setSelectedVoice] = useState(localStorage.getItem('voiceai_voice') || '');
   const [kokoroVoice, setKokoroVoice] = useState<any>(
     localStorage.getItem('voiceai_kokoro_voice') || 'af_sky'
@@ -249,6 +251,21 @@ export default function VoiceAssistant() {
               </select>
             </div>
 
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">
+                LLM Model
+              </label>
+              <select
+                value={llmModel}
+                onChange={(e) => setLLMModel(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+              >
+                <option value="gpt-4o-mini">GPT-4o Mini</option>
+                <option value="gpt-4o">GPT-4o</option>
+                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+              </select>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">
@@ -260,10 +277,6 @@ export default function VoiceAssistant() {
                     const newEngine = e.target.value as 'native' | 'kokoro';
                     setTtsEngine(newEngine);
                     localStorage.setItem('voiceai_tts_engine', newEngine);
-                    // Reload page to reinitialize TTS engine
-                    setTimeout(() => {
-                      window.location.reload();
-                    }, 100);
                   }}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
                 >
@@ -283,10 +296,6 @@ export default function VoiceAssistant() {
                       const newVoice = e.target.value;
                       setKokoroVoice(newVoice);
                       localStorage.setItem('voiceai_kokoro_voice', newVoice);
-                      // Reload page to reinitialize with new voice
-                      setTimeout(() => {
-                        window.location.reload();
-                      }, 100);
                     }}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
                   >

@@ -99,6 +99,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   const lastTTSEndTimeRef = useRef<number>(0);
   const processedSentencesRef = useRef<number>(0);
   const spokenSentencesRef = useRef<Set<string>>(new Set());
+  const systemTTSSentencesRef = useRef<string[]>([]);  // Buffer for system TTS sentences
   
   // Average tracking for all pipeline stages
   const vadTimesRef = useRef<number[]>([]);
@@ -402,40 +403,58 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   const speakResponse = useCallback(async (text: string) => {
     if (!text || text.trim().length === 0) return;
     
-    // Prevent speaking if already speaking or generating (additional safeguard)
-    if (tts.isSpeaking || (config.tts.engine === 'kokoro' && kokoroTTS.isGenerating)) {
-      console.log('[MoonshineConversation] Skipping TTS - already speaking/generating:', text.substring(0, 50));
-      return;
-    }
-    
-    // Mark when TTS is requested (right after LLM completion)
-    if (!performanceRef.current.ttsStartTime) {
-      performanceRef.current.ttsStartTime = Date.now();
-      console.log('[MoonshineConversation] TTS requested at:', performanceRef.current.ttsStartTime);
-    }
-    
-    const timeSinceLastTTS = Date.now() - lastTTSEndTimeRef.current;
-    if (timeSinceLastTTS < TTS_COOLDOWN_MS) {
-      await new Promise(resolve => setTimeout(resolve, TTS_COOLDOWN_MS - timeSinceLastTTS));
-    }
-    
-    // Pause VAD before speaking to prevent echo/feedback
-    if (moonshine.isListening) {
-      console.log('[MoonshineConversation] Pausing VAD before TTS');
-      moonshine.pauseVAD();
-    }
-    
-    // Speak using the selected TTS engine
+    // Handle differently based on TTS engine
     if (config.tts.engine === 'kokoro') {
+      // KOKORO TTS - Keep existing logic
+      // Prevent speaking if already speaking or generating
+      if (kokoroTTS.isSpeaking || kokoroTTS.isGenerating) {
+        console.log('[MoonshineConversation] Skipping Kokoro TTS - already speaking/generating:', text.substring(0, 50));
+        return;
+      }
+      
+      // Mark when TTS is requested (right after LLM completion)
+      if (!performanceRef.current.ttsStartTime) {
+        performanceRef.current.ttsStartTime = Date.now();
+        console.log('[MoonshineConversation] Kokoro TTS requested at:', performanceRef.current.ttsStartTime);
+      }
+      
+      const timeSinceLastTTS = Date.now() - lastTTSEndTimeRef.current;
+      if (timeSinceLastTTS < TTS_COOLDOWN_MS) {
+        await new Promise(resolve => setTimeout(resolve, TTS_COOLDOWN_MS - timeSinceLastTTS));
+      }
+      
+      // Pause VAD before speaking to prevent echo/feedback
+      if (moonshine.isListening) {
+        console.log('[MoonshineConversation] Pausing VAD before Kokoro TTS');
+        moonshine.pauseVAD();
+      }
+      
       // For Kokoro, we need to wait for it to finish
-      // VAD resume is handled by the monitoring effect (same as native TTS)
+      // VAD resume is handled by the monitoring effect
       try {
         await kokoroTTS.speak(text, true);
       } catch (error) {
         console.error('[MoonshineConversation] Kokoro TTS error:', error);
       }
     } else {
-      // For native TTS, the monitoring effect will handle VAD resume
+      // SYSTEM TTS - Queue-based approach
+      // System TTS uses a queue, so we can just add to it
+      // The queue in useSystemTTS will handle speaking one at a time
+      
+      // Mark when TTS is requested (only once per conversation turn)
+      if (!performanceRef.current.ttsStartTime) {
+        performanceRef.current.ttsStartTime = Date.now();
+        console.log('[MoonshineConversation] System TTS requested at:', performanceRef.current.ttsStartTime);
+        
+        // Pause VAD once at the beginning for system TTS
+        if (moonshine.isListening) {
+          console.log('[MoonshineConversation] Pausing VAD before System TTS');
+          moonshine.pauseVAD();
+        }
+      }
+      
+      // System TTS can queue multiple sentences
+      console.log('[MoonshineConversation] Queueing System TTS sentence:', text.substring(0, 50));
       tts.speak(text);
     }
   }, [tts, kokoroTTS, moonshine, config.tts.engine]);
@@ -445,6 +464,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     // Clear spoken sentences when a new transcription starts (new conversation turn)
     spokenSentencesRef.current.clear();
     processedSentencesRef.current = 0;
+    systemTTSSentencesRef.current = [];  // Clear system TTS buffer
     
     performanceRef.current.sttEndTime = Date.now();
     const sttTime = performanceRef.current.sttEndTime - performanceRef.current.speechEndTime;
@@ -505,15 +525,39 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
             // Early TTS triggering on sentence boundaries
             if (config.autoSpeak !== false) {
               const sentences = extractCompleteSentences(fullResponse);
-              if (sentences.length > processedSentencesRef.current) {
-                const newSentence = sentences[processedSentencesRef.current];
-                if (newSentence && newSentence.trim().length > 0) {
-                  // Check if this sentence has already been spoken to prevent loops
-                  const sentenceKey = newSentence.trim().toLowerCase();
-                  if (!spokenSentencesRef.current.has(sentenceKey)) {
-                    console.log('[MoonshineConversation] Early TTS trigger for sentence:', newSentence);
-                    spokenSentencesRef.current.add(sentenceKey);
-                    speakResponse(newSentence);
+              
+              if (config.tts.engine === 'kokoro') {
+                // KOKORO - Keep existing sentence-by-sentence logic
+                if (sentences.length > processedSentencesRef.current) {
+                  const newSentence = sentences[processedSentencesRef.current];
+                  if (newSentence && newSentence.trim().length > 0) {
+                    // Check if this sentence has already been spoken to prevent loops
+                    const sentenceKey = newSentence.trim().toLowerCase();
+                    if (!spokenSentencesRef.current.has(sentenceKey)) {
+                      console.log('[MoonshineConversation] Early Kokoro TTS trigger for sentence:', newSentence);
+                      spokenSentencesRef.current.add(sentenceKey);
+                      speakResponse(newSentence);
+                      processedSentencesRef.current++;
+                    }
+                  }
+                }
+              } else {
+                // SYSTEM TTS - Batch sentences to avoid overlapping speech
+                // Collect new sentences but speak them together
+                while (sentences.length > processedSentencesRef.current) {
+                  const newSentence = sentences[processedSentencesRef.current];
+                  if (newSentence && newSentence.trim().length > 0) {
+                    const sentenceKey = newSentence.trim().toLowerCase();
+                    if (!spokenSentencesRef.current.has(sentenceKey)) {
+                      console.log('[MoonshineConversation] Queueing System TTS sentence:', newSentence);
+                      spokenSentencesRef.current.add(sentenceKey);
+                      systemTTSSentencesRef.current.push(newSentence);
+                      processedSentencesRef.current++;
+                      
+                      // Speak immediately for each sentence (they'll queue in useSystemTTS)
+                      speakResponse(newSentence);
+                    }
+                  } else {
                     processedSentencesRef.current++;
                   }
                 }
@@ -550,22 +594,53 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
             if (config.autoSpeak !== false) {
               // Speak any remaining text that wasn't processed as complete sentences
               const sentences = extractCompleteSentences(fullText);
-              const remainingText = sentences.slice(processedSentencesRef.current).join(' ').trim();
               
-              if (remainingText.length > 0) {
-                const remainingKey = remainingText.toLowerCase();
-                if (!spokenSentencesRef.current.has(remainingKey)) {
-                  console.log('[MoonshineConversation] Speaking remaining text:', remainingText);
-                  spokenSentencesRef.current.add(remainingKey);
-                  speakResponse(remainingText);
+              if (config.tts.engine === 'kokoro') {
+                // KOKORO - Keep existing logic
+                const remainingText = sentences.slice(processedSentencesRef.current).join(' ').trim();
+                
+                if (remainingText.length > 0) {
+                  const remainingKey = remainingText.toLowerCase();
+                  if (!spokenSentencesRef.current.has(remainingKey)) {
+                    console.log('[MoonshineConversation] Speaking remaining Kokoro text:', remainingText);
+                    spokenSentencesRef.current.add(remainingKey);
+                    speakResponse(remainingText);
+                  }
+                } else if (sentences.length === 0) {
+                  // No complete sentences, speak the full text
+                  const fullTextKey = fullText.trim().toLowerCase();
+                  if (!spokenSentencesRef.current.has(fullTextKey)) {
+                    console.log('[MoonshineConversation] No complete sentences, speaking full Kokoro text');
+                    spokenSentencesRef.current.add(fullTextKey);
+                    speakResponse(fullText);
+                  }
                 }
-              } else if (sentences.length === 0) {
-                // No complete sentences, speak the full text
-                const fullTextKey = fullText.trim().toLowerCase();
-                if (!spokenSentencesRef.current.has(fullTextKey)) {
-                  console.log('[MoonshineConversation] No complete sentences, speaking full text');
-                  spokenSentencesRef.current.add(fullTextKey);
-                  speakResponse(fullText);
+              } else {
+                // SYSTEM TTS - Handle any remaining unprocessed text
+                // Process any remaining sentences
+                while (sentences.length > processedSentencesRef.current) {
+                  const newSentence = sentences[processedSentencesRef.current];
+                  if (newSentence && newSentence.trim().length > 0) {
+                    const sentenceKey = newSentence.trim().toLowerCase();
+                    if (!spokenSentencesRef.current.has(sentenceKey)) {
+                      console.log('[MoonshineConversation] Speaking remaining System TTS sentence:', newSentence);
+                      spokenSentencesRef.current.add(sentenceKey);
+                      speakResponse(newSentence);
+                    }
+                  }
+                  processedSentencesRef.current++;
+                }
+                
+                // Handle incomplete last part
+                const lastPartIndex = sentences.length > 0 ? sentences.join('').length : 0;
+                const incompleteText = fullText.substring(lastPartIndex).trim();
+                if (incompleteText.length > 0) {
+                  const incompleteKey = incompleteText.toLowerCase();
+                  if (!spokenSentencesRef.current.has(incompleteKey)) {
+                    console.log('[MoonshineConversation] Speaking incomplete System TTS text:', incompleteText);
+                    spokenSentencesRef.current.add(incompleteKey);
+                    speakResponse(incompleteText);
+                  }
                 }
               }
             }
