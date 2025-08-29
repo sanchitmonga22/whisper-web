@@ -12,6 +12,8 @@ export const useSystemTTS = (options: UseSystemTTSOptions = {}) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const speechQueueRef = useRef<string[]>([]);
+  const isProcessingQueueRef = useRef(false);
 
   const initialize = useCallback(() => {
     try {

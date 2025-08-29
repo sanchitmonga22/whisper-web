@@ -185,13 +185,11 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       const audioBuffer = await service.textToSpeech(text, config.voiceId || undefined);
       const ttsLatency = Date.now() - ttsStartTime;
       performanceRef.current.lastMetrics.ttsLatency = ttsLatency;
-      // Update TTS average
+      // Note: We track TTS internally but don't report it as ElevenLabs handles everything
+      // Update TTS average for internal use only
       const metrics = performanceRef.current.lastMetrics;
       metrics.ttsCount++;
       metrics.avgTtsLatency = Math.round((metrics.avgTtsLatency * (metrics.ttsCount - 1) + ttsLatency) / metrics.ttsCount);
-      
-      // Track analytics
-      trackPerformanceMetric('tts_processing_time', ttsLatency, 'elevenlabs');
       
       console.log('[useElevenLabsConversation] TTS completed in', ttsLatency, 'ms');
       console.log('[useElevenLabsConversation] Audio buffer received:', {
@@ -234,6 +232,29 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       };
       
       await audio.play();
+      
+      // Calculate perceived latency when audio starts playing
+      if (performanceRef.current.conversationStart > 0) {
+        const perceivedLatency = Date.now() - performanceRef.current.conversationStart;
+        performanceRef.current.lastMetrics.totalLatency = perceivedLatency;
+        
+        // Update average
+        const totalMetrics = performanceRef.current.lastMetrics;
+        totalMetrics.totalCount++;
+        totalMetrics.avgTotalLatency = Math.round((totalMetrics.avgTotalLatency * (totalMetrics.totalCount - 1) + perceivedLatency) / totalMetrics.totalCount);
+        
+        // Track analytics
+        trackPerformanceMetric('total_pipeline_time', perceivedLatency, 'elevenlabs');
+        trackVoiceComparison('elevenlabs', {
+          totalLatency: perceivedLatency,
+          perceivedLatency: perceivedLatency,
+        });
+        
+        console.log('[useElevenLabsConversation] Perceived latency (speech end → audio start):', perceivedLatency, 'ms');
+        
+        // Reset for next turn
+        performanceRef.current.conversationStart = 0;
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';
       console.error('[useElevenLabsConversation] TTS Error:', errorMsg);
@@ -301,7 +322,7 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
     if (!service) return;
 
     try {
-      performanceRef.current.conversationStart = Date.now();
+      // Don't reset conversationStart - it's already set when recording stopped
       responseTimeRef.current = Date.now();
       updateStatus('processing-llm');
       setCurrentInput(inputText);
@@ -320,13 +341,11 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       const response = await processWithLLM(inputText);
       const llmLatency = Date.now() - performanceRef.current.llmStart;
       performanceRef.current.lastMetrics.llmLatency = llmLatency;
-      // Update LLM average
+      // Note: LLM is handled separately from ElevenLabs API
+      // Update LLM average for internal use only
       const llmMetrics = performanceRef.current.lastMetrics;
       llmMetrics.llmCount++;
       llmMetrics.avgLlmLatency = Math.round((llmMetrics.avgLlmLatency * (llmMetrics.llmCount - 1) + llmLatency) / llmMetrics.llmCount);
-      
-      // Track analytics
-      trackPerformanceMetric('llm_processing_time', llmLatency, 'elevenlabs');
       
       console.log('[useElevenLabsConversation] LLM completed in', llmLatency, 'ms');
       setCurrentResponse(response);
@@ -346,28 +365,7 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
       // Play response if auto-speak is enabled
       performanceRef.current.ttsStart = Date.now();
       await playAudioResponse(response);
-      
-      // Calculate total latency
-      const totalLatency = Date.now() - performanceRef.current.conversationStart;
-      performanceRef.current.lastMetrics.totalLatency = totalLatency;
-      // Update total average
-      const totalMetrics = performanceRef.current.lastMetrics;
-      totalMetrics.totalCount++;
-      totalMetrics.avgTotalLatency = Math.round((totalMetrics.avgTotalLatency * (totalMetrics.totalCount - 1) + totalLatency) / totalMetrics.totalCount);
-      
-      // Track analytics
-      trackPerformanceMetric('total_pipeline_time', totalLatency, 'elevenlabs');
-      
-      // Track comprehensive comparison metrics
-      trackVoiceComparison('elevenlabs', {
-        sttLatency: performanceRef.current.lastMetrics.sttLatency,
-        llmLatency: performanceRef.current.lastMetrics.llmLatency,
-        ttsLatency: performanceRef.current.lastMetrics.ttsLatency,
-        totalLatency: totalLatency,
-        perceivedLatency: totalLatency, // For ElevenLabs, total = perceived
-      });
-      
-      console.log('[useElevenLabsConversation] Total conversation latency:', totalLatency, 'ms');
+      // Note: Perceived latency is now calculated inside playAudioResponse when audio actually starts
       
     } catch (err) {
       handleError(`Processing Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -521,18 +519,18 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
         
         if (audioBlob.size > 1000) { // Minimum size check
           try {
+            // Mark when user stopped speaking (recording ended) - this is the start of perceived latency
             performanceRef.current.sttStart = Date.now();
+            performanceRef.current.conversationStart = Date.now(); // Always set fresh for this turn
             updateStatus('processing-stt');
             const result = await service.speechToText(audioBlob);
             const sttLatency = Date.now() - performanceRef.current.sttStart;
             performanceRef.current.lastMetrics.sttLatency = sttLatency;
-            // Update STT average
+            // Note: STT is part of ElevenLabs integrated API
+            // Update STT average for internal use only
             const sttMetrics = performanceRef.current.lastMetrics;
             sttMetrics.sttCount++;
             sttMetrics.avgSttLatency = Math.round((sttMetrics.avgSttLatency * (sttMetrics.sttCount - 1) + sttLatency) / sttMetrics.sttCount);
-            
-            // Track analytics
-            trackPerformanceMetric('stt_processing_time', sttLatency, 'elevenlabs');
             
             console.log('[useElevenLabsConversation] STT completed in', sttLatency, 'ms');
             

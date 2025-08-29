@@ -13,6 +13,14 @@ function App() {
 
     return (
         <div className='min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900'>
+            {/* Experimental Notice Banner */}
+            <div className='bg-yellow-500/10 border-b border-yellow-500/20 py-2 px-4 text-center'>
+                <p className='text-xs text-yellow-400'>
+                    ⚠️ <strong>Experimental Feature:</strong> This voice pipeline is under active development. 
+                    Features and performance metrics may change frequently as we optimize the system.
+                </p>
+            </div>
+            
             {/* Subtle gradient overlay */}
             <div className='absolute inset-0 bg-gradient-to-t from-blue-600/5 via-transparent to-purple-600/5 pointer-events-none' />
             
@@ -29,8 +37,11 @@ function App() {
                         <div>
                             <h1 className='text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent'>
                                 RunAnywhere Voice Pipeline
+                                <span className='ml-2 text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full align-middle'>
+                                    EXPERIMENTAL
+                                </span>
                             </h1>
-                            <p className='text-xs text-slate-400 mt-0.5'>Compare AI Voice Solutions in Real-Time</p>
+                            <p className='text-xs text-slate-400 mt-0.5'>Compare AI Voice Solutions in Real-Time • Features under active development</p>
                         </div>
                     </div>
                     <div className='flex items-center gap-4'>

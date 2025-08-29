@@ -7,9 +7,7 @@ export default function VoiceAssistant() {
   const DEFAULT_OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
   const [apiKey, setApiKey] = useState(localStorage.getItem('voiceai_api_key') || DEFAULT_OPENAI_KEY);
   // Use Kokoro TTS by default, but allow user to change it
-  const [ttsEngine, setTtsEngine] = useState<'native' | 'kokoro'>(
-    (localStorage.getItem('voiceai_tts_engine') as any) || 'kokoro'
-  );
+  const [ttsEngine, setTtsEngine] = useState<'native' | 'kokoro'>('kokoro');
   const [selectedVoice, setSelectedVoice] = useState(localStorage.getItem('voiceai_voice') || '');
   const [kokoroVoice, setKokoroVoice] = useState<any>(
     localStorage.getItem('voiceai_kokoro_voice') || 'af_sky'
@@ -275,7 +273,15 @@ export default function VoiceAssistant() {
                 </label>
                 <select
                   value={ttsEngine}
-                  onChange={(e) => setTtsEngine(e.target.value as 'native' | 'kokoro')}
+                  onChange={(e) => {
+                    const newEngine = e.target.value as 'native' | 'kokoro';
+                    setTtsEngine(newEngine);
+                    localStorage.setItem('voiceai_tts_engine', newEngine);
+                    // Reload page to reinitialize TTS engine
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 100);
+                  }}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
                 >
                   <option value="native">Browser TTS</option>
@@ -290,7 +296,15 @@ export default function VoiceAssistant() {
                 {ttsEngine === 'kokoro' ? (
                   <select
                     value={kokoroVoice}
-                    onChange={(e) => setKokoroVoice(e.target.value)}
+                    onChange={(e) => {
+                      const newVoice = e.target.value;
+                      setKokoroVoice(newVoice);
+                      localStorage.setItem('voiceai_kokoro_voice', newVoice);
+                      // Reload page to reinitialize with new voice
+                      setTimeout(() => {
+                        window.location.reload();
+                      }, 100);
+                    }}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
                   >
                     <optgroup label="American Female">
