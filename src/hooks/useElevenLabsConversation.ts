@@ -375,10 +375,15 @@ export const useElevenLabsConversation = (config: UseElevenLabsConversationConfi
           } 
         });
         streamRef.current = stream;
+      }
 
-        // Set up audio analysis for VAD
+      // Set up audio analysis for VAD if not already set up
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const source = audioContextRef.current.createMediaStreamSource(stream);
+      }
+      
+      if (!analyserRef.current && streamRef.current) {
+        const source = audioContextRef.current.createMediaStreamSource(streamRef.current);
         analyserRef.current = audioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 256;
         source.connect(analyserRef.current);

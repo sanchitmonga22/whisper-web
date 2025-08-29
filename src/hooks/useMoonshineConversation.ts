@@ -115,6 +115,10 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     return matches ? matches.map(s => s.trim()).filter(s => s.length > 0) : [];
   }, []);
 
+  // Track if currently processing to prevent resets
+  const isProcessingRef = useRef(false);
+  const isSpeakingRef = useRef(false);
+  
   // Performance tracking refs
   // 
   // PIPELINE TIMING METHODOLOGY:
@@ -153,13 +157,16 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   const moonshine = useMoonshine({
     ...config.moonshine,
     onSpeechStart: () => {
-      // Reset performance metrics for new turn
-      performanceRef.current.speechStartTime = Date.now();
-      performanceRef.current.llmFirstTokenTime = 0;
-      performanceRef.current.llmStartTime = 0;
-      performanceRef.current.sttEndTime = 0;
-      performanceRef.current.pipelineStartTime = 0; // Reset pipeline timing for new turn
-      performanceRef.current.ttsFirstSpeechTime = 0;
+      // Only reset metrics if we're not in the middle of processing
+      if (!isProcessingRef.current && !isSpeakingRef.current) {
+        // Reset performance metrics for new turn
+        performanceRef.current.speechStartTime = Date.now();
+        performanceRef.current.llmFirstTokenTime = 0;
+        performanceRef.current.llmStartTime = 0;
+        performanceRef.current.sttEndTime = 0;
+        performanceRef.current.pipelineStartTime = 0; // Reset pipeline timing for new turn
+        performanceRef.current.ttsFirstSpeechTime = 0;
+      }
       setState(prev => ({ ...prev, isListening: true, isProcessingSTT: true }));
     },
     onSpeechEnd: () => {
@@ -182,18 +189,30 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
   // Initialize LLM
   const llm = useLLMStreaming(config.llm);
 
-  // Initialize TTS based on engine selection
-  const nativeTTS = useSystemTTS(config.tts);
+  // Initialize TTS based on engine selection (pass fresh config for voice changes)
+  const nativeTTS = useSystemTTS({
+    rate: config.tts.rate,
+    pitch: config.tts.pitch,
+    volume: config.tts.volume,
+    voice: config.tts.voice  // This will update when config changes
+  });
   const kokoroTTS = useKokoroTTS({
     voice: config.tts.kokoroVoice || 'af_sky',
     model: config.tts.kokoroModel,
     dtype: config.tts.kokoroDtype || 'q8', // Default to q8 for optimal browser performance
     device: 'auto', // Auto-detect WebGPU or fallback to WASM
-    autoInitialize: config.tts.engine === 'kokoro',
+    autoInitialize: false, // Don't auto-initialize, we'll initialize manually when needed
   });
   
   // Use the selected TTS engine
   const tts = config.tts.engine === 'kokoro' ? kokoroTTS : nativeTTS;
+  
+  // Update Kokoro voice when configuration changes
+  useEffect(() => {
+    if (config.tts.engine === 'kokoro' && config.tts.kokoroVoice && kokoroTTS.isInitialized) {
+      kokoroTTS.setVoice(config.tts.kokoroVoice);
+    }
+  }, [config.tts.kokoroVoice, config.tts.engine, kokoroTTS.isInitialized, kokoroTTS.setVoice]);
 
   // Update statistics
   const updateStats = useCallback((responseTime: number) => {
@@ -334,6 +353,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     
     // TTS stopped speaking
     if (wasSpeaking && !isSpeaking) {
+      isSpeakingRef.current = false;
       performanceRef.current.ttsEndTime = Date.now();
       const ttsTime = performanceRef.current.ttsStartTime ? 
         performanceRef.current.ttsEndTime - performanceRef.current.ttsStartTime : 0;
@@ -396,6 +416,9 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       return;
     }
     
+    // Pause VAD while speaking to prevent interruptions
+    moonshine.pauseVAD();
+    
     // Mark when TTS is requested (right after LLM completion)
     if (!performanceRef.current.ttsStartTime) {
       performanceRef.current.ttsStartTime = Date.now();
@@ -412,6 +435,8 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
       console.log('[MoonshineConversation] Pausing VAD before TTS');
       moonshine.pauseVAD();
     }
+    
+    isSpeakingRef.current = true;
     
     // Speak using the selected TTS engine
     if (config.tts.engine === 'kokoro') {
@@ -464,6 +489,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
     if (text && text.trim()) {
       performanceRef.current.llmStartTime = Date.now();
       performanceRef.current.llmFirstTokenTime = 0;
+      isProcessingRef.current = true;
       
       setState(prev => ({
         ...prev,
@@ -490,8 +516,10 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
               }));
             }
 
-            // Early TTS triggering on sentence boundaries
-            if (config.autoSpeak !== false) {
+            // Early TTS triggering on sentence boundaries - DISABLED to prevent loops
+            // We'll only speak at the end when the full response is ready
+            /*
+            if (config.autoSpeak !== false && !tts.isSpeaking) {
               const sentences = extractCompleteSentences(fullResponse);
               if (sentences.length > processedSentencesRef.current) {
                 const newSentence = sentences[processedSentencesRef.current];
@@ -507,6 +535,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
                 }
               }
             }
+            */
 
             setState(prev => ({
               ...prev,
@@ -516,7 +545,8 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
           // onComplete callback
           (fullText: string) => {
             performanceRef.current.llmEndTime = Date.now();
-            const llmTime = performanceRef.current.llmEndTime - performanceRef.current.llmStartTime;
+            const llmTime = performanceRef.current.llmStartTime > 0 ? 
+              performanceRef.current.llmEndTime - performanceRef.current.llmStartTime : 0;
             
             console.log('[MoonshineConversation] LLM timing:', {
               llmStartTime: performanceRef.current.llmStartTime,
@@ -524,6 +554,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
               llmTime: llmTime
             });
             
+            isProcessingRef.current = false;
             setState(prev => ({
               ...prev,
               isProcessingLLM: false,
@@ -535,26 +566,13 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
               }
             }));
 
-            if (config.autoSpeak !== false) {
-              // Speak any remaining text that wasn't processed as complete sentences
-              const sentences = extractCompleteSentences(fullText);
-              const remainingText = sentences.slice(processedSentencesRef.current).join(' ').trim();
-              
-              if (remainingText.length > 0) {
-                const remainingKey = remainingText.toLowerCase();
-                if (!spokenSentencesRef.current.has(remainingKey)) {
-                  console.log('[MoonshineConversation] Speaking remaining text:', remainingText);
-                  spokenSentencesRef.current.add(remainingKey);
-                  speakResponse(remainingText);
-                }
-              } else if (sentences.length === 0) {
-                // No complete sentences, speak the full text
-                const fullTextKey = fullText.trim().toLowerCase();
-                if (!spokenSentencesRef.current.has(fullTextKey)) {
-                  console.log('[MoonshineConversation] No complete sentences, speaking full text');
-                  spokenSentencesRef.current.add(fullTextKey);
-                  speakResponse(fullText);
-                }
+            if (config.autoSpeak !== false && fullText && fullText.trim().length > 0) {
+              // Only speak the full response once at the end
+              const fullTextKey = fullText.trim().toLowerCase();
+              if (!spokenSentencesRef.current.has(fullTextKey) && !tts.isSpeaking) {
+                console.log('[MoonshineConversation] Speaking complete response');
+                spokenSentencesRef.current.add(fullTextKey);
+                speakResponse(fullText);
               }
             }
             
@@ -571,7 +589,7 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
         }));
       }
     }
-  }, [llm, config.autoSpeak, speakResponse]);
+  }, [llm, config.autoSpeak, speakResponse, extractCompleteSentences]);
 
   // Start conversation
   const startConversation = useCallback(async () => {
@@ -607,7 +625,6 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
 
   // Stop conversation
   const stopConversation = useCallback(() => {
-    console.error('[MoonshineConversation] ⚠️ stopConversation called - Stack trace:', new Error().stack);
     console.log('[MoonshineConversation] Stopping conversation...');
     
     // Track conversation completion if it was running
@@ -617,6 +634,10 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
         tts_engine: config.tts.engine,
       });
     }
+    
+    // Clear spoken sentences to prevent issues on restart
+    spokenSentencesRef.current.clear();
+    processedSentencesRef.current = 0;
     
     moonshine.stopListening();
     llm.stop();

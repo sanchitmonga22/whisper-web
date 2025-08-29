@@ -45,23 +45,30 @@ export const useSystemTTS = (options: UseSystemTTSOptions = {}) => {
 
         const utterance = new SpeechSynthesisUtterance(text);
         
-        // Apply options
+        // Apply options - get fresh values
         utterance.rate = options.rate || 1.0;
         utterance.pitch = options.pitch || 1.0;
         utterance.volume = options.volume || 1.0;
 
-        // Try to find a preferred voice
+        // Try to find a preferred voice - get fresh voice value
         const voices = window.speechSynthesis.getVoices();
-        if (options.voice) {
+        console.log('[SystemTTS] Available voices:', voices.length);
+        console.log('[SystemTTS] Selected voice from options:', options.voice);
+        
+        if (options.voice && options.voice !== '') {
           const voice = voices.find(v => v.name === options.voice);
           if (voice) {
             utterance.voice = voice;
+            console.log('[SystemTTS] Successfully set voice:', voice.name);
+          } else {
+            console.log('[SystemTTS] Voice not found:', options.voice, 'Available:', voices.map(v => v.name));
           }
         } else {
           // Default to first available English voice
           const englishVoice = voices.find(v => v.lang.startsWith('en'));
           if (englishVoice) {
             utterance.voice = englishVoice;
+            console.log('[SystemTTS] Using default English voice:', englishVoice.name);
           }
         }
 
@@ -76,9 +83,15 @@ export const useSystemTTS = (options: UseSystemTTSOptions = {}) => {
 
         utterance.onerror = (event) => {
           setIsSpeaking(false);
-          const errorMessage = `TTS Error: ${event.error}`;
-          setError(errorMessage);
-          reject(new Error(errorMessage));
+          // Don't treat interruption as an error - it's expected when stopping
+          if (event.error === 'interrupted') {
+            console.log('[SystemTTS] Speech interrupted (expected during stop)');
+            resolve();
+          } else {
+            const errorMessage = `TTS Error: ${event.error}`;
+            setError(errorMessage);
+            reject(new Error(errorMessage));
+          }
         };
 
         utteranceRef.current = utterance;
@@ -91,7 +104,7 @@ export const useSystemTTS = (options: UseSystemTTSOptions = {}) => {
         reject(new Error(errorMessage));
       }
     });
-  }, [isInitialized, initialize, options]);
+  }, [isInitialized, initialize, options.rate, options.pitch, options.volume, options.voice]);
 
   const stop = useCallback(() => {
     if ('speechSynthesis' in window) {

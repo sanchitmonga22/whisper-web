@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useMoonshineConversation, type MoonshineConversationConfig } from '../hooks/useMoonshineConversation';
 
 export default function VoiceAssistant() {
@@ -12,6 +12,7 @@ export default function VoiceAssistant() {
   const [kokoroVoice, setKokoroVoice] = useState<any>(
     localStorage.getItem('voiceai_kokoro_voice') || 'af_sky'
   );
+  const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [llmModel, setLLMModel] = useState(localStorage.getItem('voiceai_model') || 'gpt-4o');
   const [moonshineModel, setMoonshineModel] = useState<'moonshine-tiny' | 'moonshine-base'>(
     (localStorage.getItem('voiceai_moonshine_model') as any) || 'moonshine-tiny'
@@ -21,8 +22,45 @@ export default function VoiceAssistant() {
     'You are a helpful voice assistant. Keep responses concise and conversational, typically 1-2 sentences unless more detail is specifically requested.'
   );
 
-  // Create Moonshine conversation config
-  const moonshineConfig: MoonshineConversationConfig = {
+  // Load and organize browser voices
+  useEffect(() => {
+    const loadVoices = () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        const voices = window.speechSynthesis.getVoices();
+        // Get all voices, not just English ones
+        const allVoices = voices.filter(voice => 
+          voice.lang.startsWith('en') || 
+          voice.lang.startsWith('es') || 
+          voice.lang.startsWith('fr') ||
+          voice.lang.startsWith('de') ||
+          voice.lang.startsWith('ja') ||
+          voice.lang.startsWith('zh')
+        );
+        // Sort by language then by name
+        allVoices.sort((a, b) => {
+          if (a.lang !== b.lang) {
+            return a.lang.localeCompare(b.lang);
+          }
+          return a.name.localeCompare(b.name);
+        });
+        setBrowserVoices(allVoices);
+      }
+    };
+
+    // Load voices initially
+    loadVoices();
+
+    // Also load on voices changed event (needed for Chrome)
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+      return () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+      };
+    }
+  }, []);
+
+  // Create Moonshine conversation config - recreated when dependencies change
+  const moonshineConfig: MoonshineConversationConfig = useMemo(() => ({
     llm: {
       apiKey,
       model: llmModel,
@@ -52,10 +90,13 @@ export default function VoiceAssistant() {
     },
     autoSpeak: true,
     interruptible: true,
-  };
+  }), [apiKey, llmModel, systemPrompt, ttsEngine, selectedVoice, kokoroVoice, moonshineModel]);
 
   // Initialize Moonshine conversation
   const conversation = useMoonshineConversation(moonshineConfig);
+
+  // Note: Removed auto-restart logic to prevent issues with TTS engine switching
+  // Users can manually restart the conversation if needed after changing engines
 
   // Save settings to localStorage
   useEffect(() => {
@@ -187,6 +228,10 @@ export default function VoiceAssistant() {
             if (conversation.isActive) {
               conversation.stopConversation();
             } else {
+              // For Kokoro, show initialization status
+              if (ttsEngine === 'kokoro' && !conversation.tts?.isReady) {
+                console.log('[VoiceAssistant] Kokoro TTS not ready, starting conversation will initialize it');
+              }
               conversation.startConversation();
             }
           }}
@@ -201,7 +246,8 @@ export default function VoiceAssistant() {
               : "hover:scale-105 active:scale-95"}
           `}
         >
-          {conversation.isActive ? "Stop Assistant" : "Start Assistant"}
+          {conversation.isActive ? "Stop Assistant" : 
+           (ttsEngine === 'kokoro' && !conversation.tts?.isReady ? "Start Assistant (Initializing Kokoro...)" : "Start Assistant")}
         </button>
 
         <button
@@ -277,15 +323,15 @@ export default function VoiceAssistant() {
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
                 >
                   <option value="native">Browser TTS</option>
-                  <option value="kokoro">Kokoro TTS (82M)</option>
+                  <option value="kokoro">Kokoro TTS (Local)</option>
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">
-                  {ttsEngine === 'kokoro' ? 'Kokoro Voice' : 'Browser Voice'}
-                </label>
-                {ttsEngine === 'kokoro' ? (
+              {ttsEngine === 'kokoro' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                    Kokoro Voice
+                  </label>
                   <select
                     value={kokoroVoice}
                     onChange={(e) => setKokoroVoice(e.target.value)}
@@ -316,26 +362,52 @@ export default function VoiceAssistant() {
                       <option value="bm_fable">Fable</option>
                     </optgroup>
                   </select>
-                ) : (
-                  <select
-                    value={selectedVoice}
-                    onChange={(e) => setSelectedVoice(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
-                  >
-                    <option value="">System Default</option>
-                    {typeof window !== 'undefined' && 'speechSynthesis' in window && 
-                      window.speechSynthesis.getVoices()
-                        .filter(voice => voice.lang.startsWith('en'))
-                        .map(voice => (
-                          <option key={voice.name} value={voice.name}>
-                            {voice.name} ({voice.lang})
-                          </option>
-                        ))
-                    }
-                  </select>
-                )}
-              </div>
+                </div>
+              )}
             </div>
+
+            {ttsEngine === 'native' && browserVoices.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  Browser Voice
+                </label>
+                <select
+                  value={selectedVoice}
+                  onChange={(e) => setSelectedVoice(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                >
+                  <option value="">System Default</option>
+                  {(() => {
+                    // Group voices by language
+                    const groupedVoices = browserVoices.reduce((groups, voice) => {
+                      const langCode = voice.lang.split('-')[0];
+                      const langName = {
+                        'en': 'English',
+                        'es': 'Spanish',
+                        'fr': 'French', 
+                        'de': 'German',
+                        'ja': 'Japanese',
+                        'zh': 'Chinese'
+                      }[langCode] || langCode.toUpperCase();
+                      
+                      if (!groups[langName]) groups[langName] = [];
+                      groups[langName].push(voice);
+                      return groups;
+                    }, {} as Record<string, SpeechSynthesisVoice[]>);
+
+                    return Object.entries(groupedVoices).map(([langName, voices]) => (
+                      <optgroup key={langName} label={langName}>
+                        {voices.map(voice => (
+                          <option key={voice.name} value={voice.name}>
+                            {voice.name.replace(/Microsoft |Google |Apple /, '')} ({voice.lang})
+                          </option>
+                        ))}
+                      </optgroup>
+                    ));
+                  })()}
+                </select>
+              </div>
+            )}
           </div>
         </div>
       )}
