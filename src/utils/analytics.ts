@@ -47,3 +47,50 @@ export const trackFeatureUsage = (feature: string, details?: Record<string, any>
     ...details,
   });
 };
+
+// Comprehensive comparison tracking
+export const trackVoiceComparison = (
+  provider: 'moonshine' | 'elevenlabs',
+  metrics: {
+    sttLatency?: number;
+    llmLatency?: number;
+    ttsLatency?: number;
+    totalLatency?: number;
+    perceivedLatency?: number;
+    vadDetectionTime?: number;
+  },
+  sessionId?: string
+) => {
+  trackEvent('voice_pipeline_comparison', {
+    provider,
+    session_id: sessionId || Date.now().toString(),
+    // Core metrics
+    stt_latency_ms: metrics.sttLatency,
+    llm_latency_ms: metrics.llmLatency,
+    tts_latency_ms: metrics.ttsLatency,
+    total_latency_ms: metrics.totalLatency,
+    perceived_latency_ms: metrics.perceivedLatency,
+    vad_detection_ms: metrics.vadDetectionTime,
+    // Categorized performance (for easy filtering)
+    performance_category: 
+      (metrics.totalLatency || 0) < 1000 ? 'excellent' :
+      (metrics.totalLatency || 0) < 2000 ? 'good' :
+      (metrics.totalLatency || 0) < 3000 ? 'acceptable' : 'slow',
+    timestamp: new Date().toISOString(),
+  });
+};
+
+// Track quality metrics
+export const trackQualityMetric = (
+  provider: 'moonshine' | 'elevenlabs',
+  metric: 'transcription_accuracy' | 'voice_quality' | 'response_relevance',
+  score: number,
+  details?: Record<string, any>
+) => {
+  trackEvent('quality_metric', {
+    provider,
+    metric_type: metric,
+    score,
+    ...details,
+  });
+};

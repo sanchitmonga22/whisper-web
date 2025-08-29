@@ -3,10 +3,12 @@ import { useMoonshineConversation, type MoonshineConversationConfig } from '../h
 
 export default function VoiceAssistant() {
   const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useState(localStorage.getItem('voiceai_api_key') || '');
-  // Use native TTS by default, but allow user to change it
+  // Use environment variable or localStorage
+  const DEFAULT_OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
+  const [apiKey, setApiKey] = useState(localStorage.getItem('voiceai_api_key') || DEFAULT_OPENAI_KEY);
+  // Use Kokoro TTS by default, but allow user to change it
   const [ttsEngine, setTtsEngine] = useState<'native' | 'kokoro'>(
-    (localStorage.getItem('voiceai_tts_engine') as any) || 'native'
+    (localStorage.getItem('voiceai_tts_engine') as any) || 'kokoro'
   );
   const [selectedVoice, setSelectedVoice] = useState(localStorage.getItem('voiceai_voice') || '');
   const [kokoroVoice, setKokoroVoice] = useState<any>(

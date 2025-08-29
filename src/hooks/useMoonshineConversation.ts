@@ -4,7 +4,7 @@ import { useLLMStreaming, type LLMConfig } from './useLLMStreaming';
 import { useSystemTTS } from './useSystemTTS';
 import { useKokoroTTS } from './useKokoroTTS';
 import type { KokoroVoice } from '../services/kokoroTTSService';
-import { trackVoiceConversation, trackPerformanceMetric } from '../utils/analytics';
+import { trackVoiceConversation, trackPerformanceMetric, trackVoiceComparison } from '../utils/analytics';
 
 export interface TTSConfig {
   engine?: 'native' | 'kokoro';
@@ -327,6 +327,17 @@ export function useMoonshineConversation(config: MoonshineConversationConfig) {
         trackPerformanceMetric('stt_processing_time', sttTime, 'moonshine');
         trackPerformanceMetric('llm_processing_time', llmTime, 'moonshine');
         trackPerformanceMetric('tts_processing_time', ttsProcessingTime, 'moonshine');
+        
+        // Track comprehensive comparison metrics
+        const vadTime = performanceRef.current.speechEndTime - performanceRef.current.speechStartTime;
+        trackVoiceComparison('moonshine', {
+          sttLatency: sttTime,
+          llmLatency: llmTime,
+          ttsLatency: ttsProcessingTime,
+          totalLatency: totalPipelineTime,
+          perceivedLatency: totalPipelineTime, // Speech end to first audio
+          vadDetectionTime: vadTime,
+        });
         
         console.log(`[MoonshineConversation] Pipeline complete - Total: ${totalPipelineTime}ms (Speech→Audio)`);
       }

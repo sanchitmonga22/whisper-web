@@ -3,8 +3,11 @@ import { useElevenLabsConversation } from '../hooks/useElevenLabsConversation';
 
 export default function ElevenLabsAssistant() {
   const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useState(localStorage.getItem('elevenlabs_api_key') || '');
-  const [openaiApiKey, setOpenaiApiKey] = useState(localStorage.getItem('openai_api_key') || '');
+  // Use environment variables or localStorage - users can override with their own keys
+  const DEFAULT_ELEVENLABS_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY || '';
+  const DEFAULT_OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
+  const [apiKey, setApiKey] = useState(localStorage.getItem('elevenlabs_api_key') || DEFAULT_ELEVENLABS_KEY);
+  const [openaiApiKey, setOpenaiApiKey] = useState(localStorage.getItem('openai_api_key') || DEFAULT_OPENAI_KEY);
   const [selectedVoice, setSelectedVoice] = useState(() => {
     const savedVoice = localStorage.getItem('elevenlabs_voice');
     // Clear invalid voice IDs that are actually names
@@ -88,11 +91,17 @@ export default function ElevenLabsAssistant() {
           <div className="text-lg font-bold text-white">
             {conversation.metrics?.sttLatency ? `${conversation.metrics.sttLatency}ms` : '--ms'}
           </div>
+          <div className="text-xs text-slate-400 mt-1">
+            Avg: {conversation.metrics?.avgSttLatency ? `${conversation.metrics.avgSttLatency}ms` : '--ms'}
+          </div>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
           <div className="text-xs font-medium text-green-400 mb-1">LLM Response</div>
           <div className="text-lg font-bold text-white">
             {conversation.metrics?.llmLatency ? `${conversation.metrics.llmLatency}ms` : '--ms'}
+          </div>
+          <div className="text-xs text-slate-400 mt-1">
+            Avg: {conversation.metrics?.avgLlmLatency ? `${conversation.metrics.avgLlmLatency}ms` : '--ms'}
           </div>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
@@ -100,11 +109,17 @@ export default function ElevenLabsAssistant() {
           <div className="text-lg font-bold text-white">
             {conversation.metrics?.ttsLatency ? `${conversation.metrics.ttsLatency}ms` : '--ms'}
           </div>
+          <div className="text-xs text-slate-400 mt-1">
+            Avg: {conversation.metrics?.avgTtsLatency ? `${conversation.metrics.avgTtsLatency}ms` : '--ms'}
+          </div>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
           <div className="text-xs font-medium text-orange-400 mb-1">Total Latency</div>
           <div className="text-lg font-bold text-white">
             {conversation.metrics?.totalLatency ? `${conversation.metrics.totalLatency}ms` : '--ms'}
+          </div>
+          <div className="text-xs text-slate-400 mt-1">
+            Avg: {conversation.metrics?.avgTotalLatency ? `${conversation.metrics.avgTotalLatency}ms` : '--ms'}
           </div>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/10">
