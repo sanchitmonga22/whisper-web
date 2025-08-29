@@ -1,10 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import VoiceAssistant from "./components/VoiceAssistant";
 import ElevenLabsAssistant from "./components/ElevenLabsAssistant";
+import VoiceToVoiceAssistant from "./components/VoiceToVoiceAssistant";
 import ThemeToggle from "./components/ThemeToggle";
 import { trackDemoInteraction, trackFeatureUsage } from "./utils/analytics";
 
 function App() {
+    const [activeTab, setActiveTab] = useState<'runanywhere' | 'elevenlabs' | 'voicetovoice'>('runanywhere');
+    
     // Track page load
     useEffect(() => {
         trackDemoInteraction('page_loaded');
@@ -59,69 +62,140 @@ function App() {
                 </div>
             </header>
 
-            {/* Main Content - Split View */}
+            {/* Main Content - Tabbed View */}
             <main className='relative z-10 flex-1 p-6'>
                 <div className='max-w-[1600px] mx-auto'>
-                    <div className='grid lg:grid-cols-2 gap-6 h-[calc(100vh-140px)]'>
-                        {/* Left Side - RunAnywhere Voice AI */}
-                        <div className='flex flex-col'>
-                            <div className='bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-xl rounded-2xl border border-blue-500/20 overflow-hidden flex flex-col h-full'>
-                                {/* Section Header */}
-                                <div className='bg-gradient-to-r from-blue-600/10 to-purple-600/10 px-6 py-4 border-b border-blue-500/20'>
-                                    <div className='flex items-center justify-between'>
-                                        <div>
-                                            <h2 className='text-lg font-semibold text-white flex items-center gap-2'>
-                                                <span className='w-2 h-2 bg-blue-500 rounded-full animate-pulse' />
-                                                RunAnywhere Voice AI
-                                            </h2>
-                                            <p className='text-xs text-slate-400 mt-1'>
-                                                Local STT (Moonshine) • Cloud LLM • Local TTS (Piper)
-                                            </p>
-                                        </div>
-                                        <div className='flex items-center gap-2'>
-                                            <span className='px-2 py-1 text-xs font-medium text-blue-400 bg-blue-500/10 rounded-full'>
-                                                On-Device AI
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {/* Component Container */}
-                                <div className='flex-1 p-6 overflow-auto'>
-                                    <VoiceAssistant />
-                                </div>
-                            </div>
+                    {/* Tab Navigation */}
+                    <div className='flex justify-center mb-6'>
+                        <div className='bg-slate-900/50 backdrop-blur-xl rounded-lg p-1 flex gap-1 border border-blue-500/20'>
+                            <button
+                                onClick={() => {
+                                    setActiveTab('runanywhere');
+                                    trackFeatureUsage('tab_switch', { tab: 'runanywhere' });
+                                }}
+                                className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${
+                                    activeTab === 'runanywhere'
+                                        ? 'bg-blue-500 text-white'
+                                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                }`}
+                            >
+                                RunAnywhere Voice
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setActiveTab('elevenlabs');
+                                    trackFeatureUsage('tab_switch', { tab: 'elevenlabs' });
+                                }}
+                                className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${
+                                    activeTab === 'elevenlabs'
+                                        ? 'bg-purple-500 text-white'
+                                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                }`}
+                            >
+                                ElevenLabs Pipeline
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setActiveTab('voicetovoice');
+                                    trackFeatureUsage('tab_switch', { tab: 'voicetovoice' });
+                                }}
+                                className={`px-6 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
+                                    activeTab === 'voicetovoice'
+                                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                }`}
+                            >
+                                Voice-to-Voice
+                                <span className='text-xs px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 rounded'>NEW</span>
+                            </button>
                         </div>
+                    </div>
 
-                        {/* Right Side - ElevenLabs */}
-                        <div className='flex flex-col'>
-                            <div className='bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-xl rounded-2xl border border-purple-500/20 overflow-hidden flex flex-col h-full'>
-                                {/* Section Header */}
-                                <div className='bg-gradient-to-r from-purple-600/10 to-pink-600/10 px-6 py-4 border-b border-purple-500/20'>
-                                    <div className='flex items-center justify-between'>
-                                        <div>
-                                            <h2 className='text-lg font-semibold text-white flex items-center gap-2'>
-                                                <span className='w-2 h-2 bg-purple-500 rounded-full animate-pulse' />
-                                                ElevenLabs AI
-                                            </h2>
-                                            <p className='text-xs text-slate-400 mt-1'>
-                                                Cloud-Based Conversational AI
-                                            </p>
-                                        </div>
-                                        <div className='flex items-center gap-2'>
-                                            <span className='px-2 py-1 text-xs font-medium text-purple-400 bg-purple-500/10 rounded-full'>
-                                                Cloud API
-                                            </span>
+                    {/* Tab Content */}
+                    <div className='h-[calc(100vh-220px)]'>
+                        {activeTab === 'runanywhere' && (
+                            <div className='flex flex-col h-full'>
+                                <div className='bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-xl rounded-2xl border border-blue-500/20 overflow-hidden flex flex-col h-full'>
+                                    <div className='bg-gradient-to-r from-blue-600/10 to-purple-600/10 px-6 py-4 border-b border-blue-500/20'>
+                                        <div className='flex items-center justify-between'>
+                                            <div>
+                                                <h2 className='text-lg font-semibold text-white flex items-center gap-2'>
+                                                    <span className='w-2 h-2 bg-blue-500 rounded-full animate-pulse' />
+                                                    RunAnywhere Voice AI
+                                                </h2>
+                                                <p className='text-xs text-slate-400 mt-1'>
+                                                    Local STT (Moonshine) • Cloud LLM • Local TTS (Piper)
+                                                </p>
+                                            </div>
+                                            <div className='flex items-center gap-2'>
+                                                <span className='px-2 py-1 text-xs font-medium text-blue-400 bg-blue-500/10 rounded-full'>
+                                                    On-Device AI
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                
-                                {/* Component Container */}
-                                <div className='flex-1 p-6 overflow-auto'>
-                                    <ElevenLabsAssistant />
+                                    <div className='flex-1 p-6 overflow-auto'>
+                                        <VoiceAssistant />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
+
+                        {activeTab === 'elevenlabs' && (
+                            <div className='flex flex-col h-full'>
+                                <div className='bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-xl rounded-2xl border border-purple-500/20 overflow-hidden flex flex-col h-full'>
+                                    <div className='bg-gradient-to-r from-purple-600/10 to-pink-600/10 px-6 py-4 border-b border-purple-500/20'>
+                                        <div className='flex items-center justify-between'>
+                                            <div>
+                                                <h2 className='text-lg font-semibold text-white flex items-center gap-2'>
+                                                    <span className='w-2 h-2 bg-purple-500 rounded-full animate-pulse' />
+                                                    ElevenLabs Pipeline
+                                                </h2>
+                                                <p className='text-xs text-slate-400 mt-1'>
+                                                    STT → OpenAI → TTS (Traditional Pipeline)
+                                                </p>
+                                            </div>
+                                            <div className='flex items-center gap-2'>
+                                                <span className='px-2 py-1 text-xs font-medium text-purple-400 bg-purple-500/10 rounded-full'>
+                                                    Cloud API
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className='flex-1 p-6 overflow-auto'>
+                                        <ElevenLabsAssistant />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'voicetovoice' && (
+                            <div className='flex flex-col h-full'>
+                                <div className='bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-xl rounded-2xl border border-gradient-to-r from-purple-500/20 to-pink-500/20 overflow-hidden flex flex-col h-full'>
+                                    <div className='bg-gradient-to-r from-purple-600/10 to-pink-600/10 px-6 py-4 border-b border-purple-500/20'>
+                                        <div className='flex items-center justify-between'>
+                                            <div>
+                                                <h2 className='text-lg font-semibold text-white flex items-center gap-2'>
+                                                    <span className='w-2 h-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse' />
+                                                    Voice-to-Voice AI
+                                                </h2>
+                                                <p className='text-xs text-slate-400 mt-1'>
+                                                    Direct Speech-to-Speech • Single API Call • ~60% Faster
+                                                </p>
+                                            </div>
+                                            <div className='flex items-center gap-2'>
+                                                <span className='px-2 py-1 text-xs font-medium text-green-400 bg-green-500/10 rounded-full'>
+                                                    Optimized
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className='flex-1 p-6 overflow-auto'>
+                                        <VoiceToVoiceAssistant />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Footer Info */}

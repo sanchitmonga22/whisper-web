@@ -19,9 +19,13 @@
       "Bash(npx eslint:*)",
       "Bash(npx tsc:*)",
       "Bash(sed:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npx vite:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "/Users/sanchitmonga/development/ODLM/runanywhere_landing_fe/app"
+    ]
   }
 }
